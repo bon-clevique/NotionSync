@@ -15,10 +15,11 @@
     <dict>
         <key>NOTION_TOKEN</key>
         <string>{{NOTION_TOKEN}}</string>
+
         <key>NOTION_DATABASE_ID</key>
         <string>{{NOTION_DATABASE_ID}}</string>
-        <key>WATCH_DIR</key>
-        <string>{{WATCH_DIR}}</string>
+
+        {{WATCH_DIR_ENTRY}}
     </dict>
 
     <key>RunAtLoad</key>

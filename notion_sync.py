@@ -28,7 +28,6 @@ logging.basicConfig(
 # 環境変数から設定を取得
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
-WATCH_DIR = os.environ.get("WATCH_DIR", str(Path.cwd()))
 
 if not NOTION_TOKEN:
     logging.error("環境変数 NOTION_TOKEN が設定されていません")
@@ -37,6 +36,25 @@ if not NOTION_TOKEN:
 if not DATABASE_ID:
     logging.error("環境変数 NOTION_DATABASE_ID が設定されていません")
     sys.exit(1)
+
+# スクリプト自身のディレクトリを取得
+SCRIPT_DIR = Path(__file__).parent.resolve()
+
+# WATCH_DIR環境変数を取得（カンマ区切りで複数ディレクトリ対応）
+WATCH_DIR_ENV = os.environ.get("WATCH_DIR")
+if not WATCH_DIR_ENV or WATCH_DIR_ENV.strip() == "":
+    # 未設定の場合はスクリプトディレクトリを使用
+    watch_dirs = [str(SCRIPT_DIR)]
+    logging.info(f"WATCH_DIR環境変数が未設定のため、スクリプトディレクトリを監視: {SCRIPT_DIR}")
+else:
+    # カンマ区切りで複数ディレクトリをパース
+    watch_dirs = [d.strip() for d in WATCH_DIR_ENV.split(",") if d.strip()]
+    if not watch_dirs:
+        # 空文字列のみの場合はスクリプトディレクトリを使用
+        watch_dirs = [str(SCRIPT_DIR)]
+        logging.info(f"WATCH_DIR環境変数が空のため、スクリプトディレクトリを監視: {SCRIPT_DIR}")
+    else:
+        logging.info(f"WATCH_DIR環境変数から監視ディレクトリを取得: {', '.join(watch_dirs)}")
 
 # Notion クライアント初期化（API バージョン 2025-09-03 を使用）
 notion = Client(auth=NOTION_TOKEN, notion_version="2025-09-03")
@@ -175,20 +193,49 @@ class MarkdownHandler(FileSystemEventHandler):
 def main():
     """メイン処理"""
     logging.info("NotionSync 起動")
-    logging.info(f"監視ディレクトリ: {WATCH_DIR}")
 
-    # ディレクトリ存在確認
-    watch_path = Path(WATCH_DIR)
-    if not watch_path.exists():
-        logging.error(f"監視ディレクトリが存在しません: {WATCH_DIR}")
+    # WATCH_DIR環境変数の状態をログに記録
+    if os.environ.get("WATCH_DIR"):
+        logging.info(f"WATCH_DIR環境変数: {os.environ.get('WATCH_DIR')}")
+    else:
+        logging.info("WATCH_DIR環境変数: 未設定（スクリプトディレクトリを使用）")
+
+    # 各ディレクトリの存在チェックと自動作成
+    validated_dirs = []
+    for watch_dir in watch_dirs:
+        watch_path = Path(watch_dir)
+
+        # ディレクトリが存在しない場合は自動作成を試みる
+        if not watch_path.exists():
+            logging.warning(f"監視ディレクトリが存在しません: {watch_dir}")
+            try:
+                watch_path.mkdir(parents=True, exist_ok=True)
+                logging.info(f"監視ディレクトリを作成しました: {watch_dir}")
+            except Exception as e:
+                logging.error(f"監視ディレクトリの作成に失敗: {str(e)}")
+                sys.exit(1)
+
+        # 読み取り権限の確認
+        if not os.access(watch_path, os.R_OK):
+            logging.error(f"監視ディレクトリに読み取り権限がありません: {watch_dir}")
+            sys.exit(1)
+
+        validated_dirs.append(watch_dir)
+        logging.info(f"監視対象ディレクトリ: {watch_dir}")
+
+    if not validated_dirs:
+        logging.error("監視対象ディレクトリがありません")
         sys.exit(1)
 
-    # 監視開始
+    # 監視開始（複数ディレクトリ対応）
     event_handler = MarkdownHandler()
     observer = Observer()
-    observer.schedule(event_handler, WATCH_DIR, recursive=False)
-    observer.start()
 
+    for watch_dir in validated_dirs:
+        observer.schedule(event_handler, watch_dir, recursive=False)
+        logging.info(f"監視開始: {watch_dir}")
+
+    observer.start()
     logging.info("監視開始 (Ctrl+C で終了)")
 
     try:
