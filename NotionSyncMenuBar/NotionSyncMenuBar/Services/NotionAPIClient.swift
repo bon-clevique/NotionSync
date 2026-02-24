@@ -221,6 +221,47 @@ struct NotionPage: Decodable, Sendable {
     let url: String?
 }
 
+// MARK: - Data Source Response
+
+struct DataSourceResponse: Decodable, Sendable {
+    let id: String
+    let title: [RichTextItem]
+
+    struct RichTextItem: Decodable, Sendable {
+        let plainText: String
+
+        enum CodingKeys: String, CodingKey {
+            case plainText = "plain_text"
+        }
+    }
+
+    var name: String {
+        title.map(\.plainText).joined()
+    }
+}
+
+// MARK: - Database Response (for resolving share links)
+
+struct DatabaseResponse: Decodable, Sendable {
+    let id: String
+    let title: [DataSourceResponse.RichTextItem]
+    let dataSources: [DataSourceReference]
+
+    struct DataSourceReference: Decodable, Sendable {
+        let id: String
+        let name: String?
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, title
+        case dataSources = "data_sources"
+    }
+
+    var databaseName: String {
+        title.map(\.plainText).joined()
+    }
+}
+
 // MARK: - API Error Response
 
 private struct NotionErrorResponse: Decodable, Sendable {
@@ -296,20 +337,20 @@ struct NotionAPIClient: Sendable {
         do {
             request.httpBody = try JSONEncoder().encode(body)
         } catch {
-            Self.logger.error("createPage: failed to encode request body — \(error)")
+            Self.logger.error("createPage: failed to encode request body — \(error, privacy: .public)")
             throw NotionAPIError.networkError(underlying: error)
         }
 
-        Self.logger.info("createPage: POST \(url.absoluteString) title='\(title)'")
+        Self.logger.info("createPage: POST \(url.absoluteString, privacy: .public) title='\(title, privacy: .public)'")
 
         let (data, response) = try await performRequest(request)
 
         do {
             let page = try JSONDecoder().decode(NotionPage.self, from: data)
-            Self.logger.info("createPage: created page id=\(page.id)")
+            Self.logger.info("createPage: created page id=\(page.id, privacy: .public)")
             return page
         } catch {
-            Self.logger.error("createPage: decoding failed — \(error)")
+            Self.logger.error("createPage: decoding failed — \(error, privacy: .public)")
             throw NotionAPIError.decodingError(underlying: error)
         }
     }
@@ -322,11 +363,59 @@ struct NotionAPIClient: Sendable {
         request.httpMethod = "GET"
         applyHeaders(to: &request)
 
-        Self.logger.info("testConnection: GET \(url.absoluteString)")
+        Self.logger.info("testConnection: GET \(url.absoluteString, privacy: .public)")
 
         _ = try await performRequest(request)
         Self.logger.info("testConnection: success")
         return true
+    }
+
+    /// Retrieves database info including data sources by calling `GET /databases/{database_id}`.
+    /// Used to resolve a share link (which contains a database_id) to a data_source_id.
+    /// - Parameter databaseId: The database ID extracted from a Notion share link.
+    /// - Returns: The `DatabaseResponse` containing data sources.
+    func fetchDatabase(databaseId: String) async throws -> DatabaseResponse {
+        let url = Self.baseURL.appendingPathComponent("databases/\(databaseId)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        applyHeaders(to: &request)
+
+        Self.logger.info("fetchDatabase: GET \(url.absoluteString, privacy: .public)")
+
+        let (data, _) = try await performRequest(request)
+
+        do {
+            let response = try JSONDecoder().decode(DatabaseResponse.self, from: data)
+            Self.logger.info("fetchDatabase: '\(response.databaseName, privacy: .public)' with \(response.dataSources.count, privacy: .public) data source(s)")
+            return response
+        } catch {
+            Self.logger.error("fetchDatabase: decoding failed — \(error, privacy: .public)")
+            throw NotionAPIError.decodingError(underlying: error)
+        }
+    }
+
+    /// Retrieves the data source name by calling `GET /data_sources/{data_source_id}`.
+    /// - Parameter dataSourceId: The data source ID to look up.
+    /// - Returns: The data source name (title).
+    func fetchDataSourceName(dataSourceId: String) async throws -> String {
+        let url = Self.baseURL.appendingPathComponent("data_sources/\(dataSourceId)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        applyHeaders(to: &request)
+
+        Self.logger.info("fetchDataSourceName: GET \(url.absoluteString, privacy: .public)")
+
+        let (data, _) = try await performRequest(request)
+
+        do {
+            let response = try JSONDecoder().decode(DataSourceResponse.self, from: data)
+            let name = response.name
+            Self.logger.info("fetchDataSourceName: '\(name, privacy: .public)'")
+            return name
+        } catch {
+            Self.logger.error("fetchDataSourceName: decoding failed — \(error, privacy: .public)")
+            throw NotionAPIError.decodingError(underlying: error)
+        }
     }
 
     // MARK: - Private helpers
@@ -349,7 +438,7 @@ struct NotionAPIClient: Sendable {
         do {
             (data, urlResponse) = try await session.data(for: request)
         } catch {
-            Self.logger.error("performRequest: network error — \(error)")
+            Self.logger.error("performRequest: network error — \(error, privacy: .public)")
             throw NotionAPIError.networkError(underlying: error)
         }
 
@@ -361,7 +450,7 @@ struct NotionAPIClient: Sendable {
         }
 
         let statusCode = httpResponse.statusCode
-        Self.logger.debug("performRequest: HTTP \(statusCode)")
+        Self.logger.debug("performRequest: HTTP \(statusCode, privacy: .public)")
 
         switch statusCode {
         case 200...299:
@@ -369,7 +458,7 @@ struct NotionAPIClient: Sendable {
 
         case 400:
             let message = decodedErrorMessage(from: data) ?? "Bad request"
-            Self.logger.error("performRequest: 400 \(message)")
+            Self.logger.error("performRequest: 400 \(message, privacy: .public)")
             throw NotionAPIError.validationError(message: message)
 
         case 401:
@@ -383,11 +472,11 @@ struct NotionAPIClient: Sendable {
         case 429:
             let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
                 .flatMap { Int($0) }
-            Self.logger.warning("performRequest: 429 Rate limited retryAfter=\(retryAfter.map { "\($0)" } ?? "nil")")
+            Self.logger.warning("performRequest: 429 Rate limited retryAfter=\(retryAfter.map { "\($0)" } ?? "nil", privacy: .public)")
             throw NotionAPIError.rateLimited(retryAfter: retryAfter)
 
         default:
-            Self.logger.error("performRequest: unexpected status \(statusCode)")
+            Self.logger.error("performRequest: unexpected status \(statusCode, privacy: .public)")
             throw NotionAPIError.serverError(statusCode: statusCode)
         }
     }

@@ -30,9 +30,8 @@ extension KeychainError: LocalizedError {
 /// A lightweight, stateless wrapper around the Security framework Keychain APIs.
 ///
 /// All credentials are stored in the macOS Keychain under the service name
-/// `"com.bon.NotionSyncMenuBar"`. Typical keys used by NotionSync:
+/// `"com.bon.NotionSyncMenuBar"`. Keys used by NotionSync:
 /// - `"notionToken"` — Notion Integration Token
-/// - `"dataSourceId"` — Notion data source (database) ID
 struct KeychainManager: Sendable {
 
     // MARK: Constants

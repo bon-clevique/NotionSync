@@ -21,10 +21,16 @@ final class SyncEngine {
     private(set) var errorMessage: String?
     private(set) var syncedCount: Int = 0
 
-    // MARK: - Configuration (set from outside before calling start())
+    // MARK: - Configuration (set via configure() before calling start())
 
-    var dataSourceId: String = ""
-    var notionToken: String = ""
+    private(set) var dataSourceId: String = ""
+    private(set) var notionToken: String = ""
+
+    /// Updates API credentials. Call before `start()`.
+    func configure(token: String, dataSourceId: String) {
+        self.notionToken = token
+        self.dataSourceId = dataSourceId
+    }
 
     // MARK: - Dependencies
 
@@ -40,49 +46,14 @@ final class SyncEngine {
 
     private let logger = Logger(subsystem: "com.bon.NotionSyncMenuBar", category: "SyncEngine")
 
-    // MARK: - Config File Support
-
-    /// Path to sync_targets.json. When set, targets are loaded from this file instead of BookmarkManager.
-    var configFilePath: String = ""
-
-    private var configWatcher: ConfigFileWatcher?
-
-    /// Active targets from config file, keyed by canonical directory path.
-    private var activeTargets: [String: ActiveTarget] = [:]
-
-    private struct ActiveTarget {
-        let directoryURL: URL
-        var noteId: String?
-    }
-
-    /// Parsed config targets for display in SettingsView (available before start()).
-    private(set) var displayConfigTargets: [SyncTargetConfig] = []
-
     var activeTargetCount: Int {
-        if !configFilePath.isEmpty {
-            return isRunning ? activeTargets.count : displayConfigTargets.count
-        }
-        return bookmarkManager.targets.count
+        bookmarkManager.targets.count
     }
 
     // MARK: - Init
 
     init(bookmarkManager: BookmarkManager) {
         self.bookmarkManager = bookmarkManager
-    }
-
-    /// Loads config targets from the JSON file for display purposes.
-    /// Call after setting `configFilePath`.
-    func loadConfigTargets() {
-        guard !configFilePath.isEmpty else { return }
-        let url = URL(fileURLWithPath: configFilePath)
-        guard let data = try? Data(contentsOf: url),
-              let configs = try? JSONDecoder().decode([SyncTargetConfig].self, from: data) else {
-            logger.warning("loadConfigTargets: failed to parse \(self.configFilePath, privacy: .public)")
-            return
-        }
-        displayConfigTargets = configs
-        logger.info("loadConfigTargets: loaded \(configs.count, privacy: .public) target(s) for display")
     }
 
     // MARK: - Lifecycle
@@ -113,63 +84,34 @@ final class SyncEngine {
         }
         watcher = newWatcher
 
-        if !configFilePath.isEmpty {
-            // Config-file-based mode: watch sync_targets.json and reconcile targets dynamically.
-            let cfp = configFilePath
-            let cfw = ConfigFileWatcher(filePath: cfp) { [weak self] configs in
-                Task { @MainActor [weak self] in
-                    self?.reconcileTargets(configs)
-                }
+        // Start accessing every registered sync target via security-scoped bookmarks.
+        var startedURLs: [URL] = []
+        for target in bookmarkManager.targets {
+            guard let url = bookmarkManager.startAccessing(target) else {
+                logger.warning("start: could not start accessing target '\(target.displayName, privacy: .public)'")
+                continue
             }
-            configWatcher = cfw
-
-            // Load initial config and start watching before setting isRunning.
-            if let initialConfigs = cfw.parseConfigFile() {
-                reconcileTargets(initialConfigs)
-            }
-
             do {
-                try cfw.startWatching()
+                try newWatcher.watch(url)
+                newWatcher.scanExistingFiles(in: url)
+                startedURLs.append(url)
+                logger.info("start: watching '\(url.path, privacy: .public)'")
             } catch {
-                logger.error("start: failed to watch config file '\(cfp, privacy: .public)' — \(error.localizedDescription, privacy: .public)")
+                logger.error("start: failed to watch '\(url.path, privacy: .public)' — \(error.localizedDescription, privacy: .public)")
+                bookmarkManager.stopAccessing(url)
             }
-
-            isRunning = true
-            errorMessage = nil
-            logger.info("start: SyncEngine running — config-file mode, \(self.activeTargets.count, privacy: .public) target(s) watched")
-        } else {
-            // Bookmark-based mode: start accessing every registered sync target.
-            var startedURLs: [URL] = []
-            for target in bookmarkManager.targets {
-                guard let url = bookmarkManager.startAccessing(target) else {
-                    logger.warning("start: could not start accessing target '\(target.displayName, privacy: .public)'")
-                    continue
-                }
-                do {
-                    try newWatcher.watch(url)
-                    newWatcher.scanExistingFiles(in: url)
-                    startedURLs.append(url)
-                    logger.info("start: watching '\(url.path, privacy: .public)'")
-                } catch {
-                    logger.error("start: failed to watch '\(url.path, privacy: .public)' — \(error.localizedDescription, privacy: .public)")
-                    bookmarkManager.stopAccessing(url)
-                }
-            }
-
-            accessedURLs = startedURLs
-            isRunning = true
-            errorMessage = nil
-            logger.info("start: SyncEngine running — \(startedURLs.count, privacy: .public) target(s) watched")
         }
+
+        accessedURLs = startedURLs
+        isRunning = true
+        errorMessage = nil
+        logger.info("start: SyncEngine running — \(startedURLs.count, privacy: .public) target(s) watched")
     }
 
     /// Stops all directory watchers and relinquishes security-scoped resource access.
     func stop() {
         logger.info("stop: stopping SyncEngine")
 
-        configWatcher?.stopWatching()
-        configWatcher = nil
-        activeTargets.removeAll()
         processingFiles.removeAll()
 
         watcher?.stopAll()
@@ -185,47 +127,6 @@ final class SyncEngine {
         logger.info("stop: SyncEngine stopped")
     }
 
-    // MARK: - Config Reconciliation
-
-    /// Reconciles running watchers with new config entries.
-    private func reconcileTargets(_ configs: [SyncTargetConfig]) {
-        displayConfigTargets = configs
-        let newPaths = Set(configs.map { $0.directory })
-        let currentPaths = Set(activeTargets.keys)
-
-        // Stop watching removed directories
-        for path in currentPaths.subtracting(newPaths) {
-            if let target = activeTargets.removeValue(forKey: path) {
-                watcher?.stopWatching(target.directoryURL)
-                logger.info("reconcile: stopped watching removed target \(path, privacy: .public)")
-            }
-        }
-
-        // Add new directories
-        for config in configs where !currentPaths.contains(config.directory) {
-            let url = URL(fileURLWithPath: config.directory)
-            guard FileManager.default.fileExists(atPath: config.directory) else {
-                logger.warning("reconcile: directory does not exist: \(config.directory, privacy: .public)")
-                continue
-            }
-            do {
-                try watcher?.watch(url)
-                watcher?.scanExistingFiles(in: url)
-                activeTargets[config.directory] = ActiveTarget(directoryURL: url, noteId: config.resolvedNoteId)
-                logger.info("reconcile: started watching new target \(config.directory, privacy: .public)")
-            } catch {
-                logger.error("reconcile: failed to watch \(config.directory, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            }
-        }
-
-        // Update noteId for existing directories
-        for config in configs where currentPaths.contains(config.directory) {
-            activeTargets[config.directory]?.noteId = config.resolvedNoteId
-        }
-
-        logger.info("reconcile: now watching \(self.activeTargets.count, privacy: .public) target(s)")
-    }
-
     // MARK: - File Handling
 
     /// Entry point called by ``DirectoryWatcher`` when a new `.md` file is detected.
@@ -236,13 +137,10 @@ final class SyncEngine {
     nonisolated private func handleNewFile(_ fileURL: URL, in directoryURL: URL) {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            // First check config-file-based targets, then fall back to bookmark-based
-            let canonicalPath = directoryURL.resolvingSymlinksInPath().path
-            let noteId = activeTargets[canonicalPath]?.noteId
-                ?? bookmarkManager.targets.first { target in
-                    bookmarkManager.resolveURL(for: target)?.standardizedFileURL
-                        == directoryURL.standardizedFileURL
-                }?.noteId
+            let noteId = bookmarkManager.targets.first { target in
+                bookmarkManager.resolveURL(for: target)?.standardizedFileURL
+                    == directoryURL.standardizedFileURL
+            }?.noteId
 
             await processFile(fileURL, noteId: noteId)
         }

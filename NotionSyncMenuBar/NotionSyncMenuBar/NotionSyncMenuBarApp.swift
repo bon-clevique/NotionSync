@@ -10,10 +10,8 @@ struct NotionSyncMenuBarApp: App {
         let bm = BookmarkManager()
         let api = APISettings()
         let eng = SyncEngine(bookmarkManager: bm)
-        eng.notionToken = api.token
-        eng.dataSourceId = api.dataSourceId
-        eng.configFilePath = "/Users/bon/dev/NotionSync/sync_targets.json"
-        eng.loadConfigTargets()
+        eng.configure(token: api.token, dataSourceId: api.dataSourceId)
+
         self.bookmarkManager = bm
         self._apiSettings = State(initialValue: api)
         self._engine = State(initialValue: eng)
@@ -45,8 +43,7 @@ struct NotionSyncMenuBarApp: App {
                 }
             } else {
                 Button("Start") {
-                    engine.notionToken = apiSettings.token
-                    engine.dataSourceId = apiSettings.dataSourceId
+                    engine.configure(token: apiSettings.token, dataSourceId: apiSettings.dataSourceId)
                     engine.start()
                 }
                 .disabled(apiSettings.token.isEmpty || apiSettings.dataSourceId.isEmpty)
@@ -72,7 +69,7 @@ struct NotionSyncMenuBarApp: App {
         .menuBarExtraStyle(.menu)
 
         Settings {
-            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager, configFilePath: engine.configFilePath, configTargets: engine.displayConfigTargets)
+            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager)
         }
     }
 }
