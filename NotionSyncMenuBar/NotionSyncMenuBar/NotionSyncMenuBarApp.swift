@@ -2,43 +2,76 @@ import SwiftUI
 
 @main
 struct NotionSyncMenuBarApp: App {
-    @StateObject private var manager = SyncManager()
+    @State private var engine: SyncEngine
+    @State private var apiSettings: APISettings
+    private let bookmarkManager: BookmarkManager
+
+    init() {
+        let bm = BookmarkManager()
+        let api = APISettings()
+        let eng = SyncEngine(bookmarkManager: bm)
+        eng.notionToken = api.token
+        eng.dataSourceId = api.dataSourceId
+        eng.configFilePath = "/Users/bon/dev/NotionSync/sync_targets.json"
+        self.bookmarkManager = bm
+        self._apiSettings = State(initialValue: api)
+        self._engine = State(initialValue: eng)
+    }
 
     var body: some Scene {
         MenuBarExtra {
-            if manager.isRunning {
-                Text("NotionSync: Running")
+            if engine.isRunning {
+                Text("NotionSync: Running (\(engine.activeTargetCount) dirs)")
             } else {
                 Text("NotionSync: Stopped")
             }
 
+            if let file = engine.lastSyncedFile, let date = engine.lastSyncedDate {
+                Text("Last: \(file) (\(date, format: .relative(presentation: .named)))")
+                    .foregroundStyle(.secondary)
+            }
+
+            if let error = engine.errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+            }
+
             Divider()
 
-            if manager.isRunning {
+            if engine.isRunning {
                 Button("Stop") {
-                    manager.stop()
+                    engine.stop()
                 }
             } else {
                 Button("Start") {
-                    manager.start()
+                    engine.notionToken = apiSettings.token
+                    engine.dataSourceId = apiSettings.dataSourceId
+                    engine.start()
                 }
+                .disabled(apiSettings.token.isEmpty || apiSettings.dataSourceId.isEmpty)
             }
 
             Divider()
 
-            Button("Edit Config...") {
-                manager.editConfig()
+            SettingsLink {
+                Text("Settings...")
             }
+            .keyboardShortcut(",", modifiers: .command)
 
             Divider()
 
             Button("Quit") {
+                engine.stop()
                 NSApplication.shared.terminate(nil)
             }
         } label: {
-            Image(manager.isRunning ? "Running" : "Stopped")
+            Image(engine.isRunning ? "Running" : "Stopped")
                 .renderingMode(.template)
         }
         .menuBarExtraStyle(.menu)
+
+        Settings {
+            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager, configFilePath: engine.configFilePath)
+        }
     }
 }
