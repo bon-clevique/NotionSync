@@ -12,6 +12,7 @@ struct NotionSyncMenuBarApp: App {
         let eng = SyncEngine(bookmarkManager: bm)
         eng.notionToken = api.token
         eng.dataSourceId = api.dataSourceId
+        eng.configFilePath = "/Users/bon/dev/NotionSync/sync_targets.json"
         self.bookmarkManager = bm
         self._apiSettings = State(initialValue: api)
         self._engine = State(initialValue: eng)
@@ -20,7 +21,7 @@ struct NotionSyncMenuBarApp: App {
     var body: some Scene {
         MenuBarExtra {
             if engine.isRunning {
-                Text("NotionSync: Running (\(bookmarkManager.targets.count) dirs)")
+                Text("NotionSync: Running (\(engine.activeTargetCount) dirs)")
             } else {
                 Text("NotionSync: Stopped")
             }
@@ -70,7 +71,7 @@ struct NotionSyncMenuBarApp: App {
         .menuBarExtraStyle(.menu)
 
         Settings {
-            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager)
+            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager, configFilePath: engine.configFilePath)
         }
     }
 }

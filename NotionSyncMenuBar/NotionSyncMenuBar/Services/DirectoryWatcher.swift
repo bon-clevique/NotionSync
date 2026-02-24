@@ -127,6 +127,21 @@ final class DirectoryWatcher: @unchecked Sendable {
         }
     }
 
+    /// Scans the directory for existing .md files and invokes the handler for each.
+    /// Used at startup or after config reload to process files already present.
+    func scanExistingFiles(in directoryURL: URL) {
+        let url = directoryURL.resolvingSymlinksInPath()
+        queue.async { [weak self] in
+            guard let self else { return }
+            let files = currentMDFiles(in: url)
+            for fileName in files {
+                let fileURL = url.appendingPathComponent(fileName)
+                logger.info("Scan: existing .md file found: \(fileURL.path, privacy: .public)")
+                handler(fileURL, url)
+            }
+        }
+    }
+
     // MARK: Private Helpers (must be called on `queue`)
 
     /// Cancels and removes the source for `url`. Must be called on `queue`.

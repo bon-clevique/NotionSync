@@ -65,6 +65,7 @@ struct SettingsView: View {
 
     var apiSettings: APISettings
     var bookmarkManager: BookmarkManager
+    var configFilePath: String = ""
 
     var body: some View {
         TabView {
@@ -74,7 +75,7 @@ struct SettingsView: View {
             APISettingsView(apiSettings: apiSettings)
                 .tabItem { Label("API", systemImage: "key") }
 
-            SyncTargetsSettingsView(bookmarkManager: bookmarkManager)
+            SyncTargetsSettingsView(bookmarkManager: bookmarkManager, configFilePath: configFilePath)
                 .tabItem { Label("Sync Targets", systemImage: "folder") }
         }
         .frame(width: 480, height: 360)
@@ -217,6 +218,7 @@ struct APISettingsView: View {
 struct SyncTargetsSettingsView: View {
 
     var bookmarkManager: BookmarkManager
+    var configFilePath: String = ""
 
     @State private var selectedTargetID: UUID?
     @State private var editDisplayName: String = ""
@@ -229,6 +231,17 @@ struct SyncTargetsSettingsView: View {
 
     var body: some View {
         Form {
+            if !configFilePath.isEmpty {
+                Section {
+                    Label("Targets loaded from sync_targets.json", systemImage: "doc.text")
+                        .foregroundStyle(.secondary)
+                    Text(configFilePath)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                }
+            }
+
             Section("Watched Directories") {
                 if bookmarkManager.targets.isEmpty {
                     Text("No directories added yet.")
@@ -266,6 +279,7 @@ struct SyncTargetsSettingsView: View {
                 Button("Add Directory…") {
                     _ = bookmarkManager.addDirectory()
                 }
+                .disabled(!configFilePath.isEmpty)
             }
 
             if let target = selectedTarget {

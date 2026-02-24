@@ -19,6 +19,8 @@
 		AA0001010000000000000010 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000014 /* SyncEngine.swift */; };
 		AA0001010000000000000011 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000015 /* KeychainManager.swift */; };
 		AA0001010000000000000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000016 /* SettingsView.swift */; };
+		AA0001010000000000000013 /* SyncTargetConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000017 /* SyncTargetConfig.swift */; };
+		AA0001010000000000000014 /* ConfigFileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000018 /* ConfigFileWatcher.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +48,8 @@
 		BB0001010000000000000014 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		BB0001010000000000000015 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		BB0001010000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		BB0001010000000000000017 /* SyncTargetConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTargetConfig.swift; sourceTree = "<group>"; };
+		BB0001010000000000000018 /* ConfigFileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigFileWatcher.swift; sourceTree = "<group>"; };
 		BB0001010000000000000010 /* NotionSyncMenuBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotionSyncMenuBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0001010000000000000011 /* NotionSyncMenuBarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NotionSyncMenuBarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -81,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				BB0001010000000000000001 /* NotionSyncMenuBarApp.swift */,
+				DD0001010000000000000007 /* Models */,
 				DD0001010000000000000004 /* Services */,
 				DD0001010000000000000006 /* Views */,
 				BB0001010000000000000003 /* Assets.xcassets */,
@@ -107,12 +112,21 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		DD0001010000000000000007 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				BB0001010000000000000017 /* SyncTargetConfig.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 		DD0001010000000000000004 /* Services */ = {
 			isa = PBXGroup;
 			children = (
 				BB0001010000000000000006 /* NotionAPIClient.swift */,
 				BB0001010000000000000007 /* MarkdownParser.swift */,
 				BB0001010000000000000012 /* BookmarkManager.swift */,
+				BB0001010000000000000018 /* ConfigFileWatcher.swift */,
 				BB0001010000000000000013 /* DirectoryWatcher.swift */,
 				BB0001010000000000000014 /* SyncEngine.swift */,
 				BB0001010000000000000015 /* KeychainManager.swift */,
@@ -229,6 +243,8 @@
 				AA0001010000000000000010 /* SyncEngine.swift in Sources */,
 				AA0001010000000000000011 /* KeychainManager.swift in Sources */,
 				AA0001010000000000000012 /* SettingsView.swift in Sources */,
+				AA0001010000000000000013 /* SyncTargetConfig.swift in Sources */,
+				AA0001010000000000000014 /* ConfigFileWatcher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
