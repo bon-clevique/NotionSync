@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
 NotionSync - MDファイル自動保存スクリプト
-指定ディレクトリのmdファイルをNotionに保存し、元ファイルを削除
+指定ディレクトリのmdファイルをNotionに保存し、元ファイルをアーカイブ
 """
 
 import os
 import sys
 import time
+import json
+import shutil
 import logging
 from pathlib import Path
 from watchdog.observers import Observer
@@ -28,7 +30,6 @@ logging.basicConfig(
 # 環境変数から設定を取得
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN")
 DATABASE_ID = os.environ.get("NOTION_DATABASE_ID")
-WATCH_DIR = os.environ.get("WATCH_DIR", str(Path.cwd()))
 
 if not NOTION_TOKEN:
     logging.error("環境変数 NOTION_TOKEN が設定されていません")
@@ -38,12 +39,34 @@ if not DATABASE_ID:
     logging.error("環境変数 NOTION_DATABASE_ID が設定されていません")
     sys.exit(1)
 
+# スクリプト自身のディレクトリを取得
+SCRIPT_DIR = Path(__file__).parent.resolve()
+
 # Notion クライアント初期化（API バージョン 2025-09-03 を使用）
 notion = Client(auth=NOTION_TOKEN, notion_version="2025-09-03")
 
 
+def load_sync_targets() -> list[dict]:
+    """sync_targets.json から同期対象ディレクトリを読み込む"""
+    config_path = SCRIPT_DIR / "sync_targets.json"
+    if not config_path.exists():
+        logging.error(f"設定ファイルが見つかりません: {config_path}")
+        sys.exit(1)
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            targets = json.load(f)
+    except json.JSONDecodeError as e:
+        logging.error(f"設定ファイルのJSON解析エラー: {e}")
+        sys.exit(1)
+    return targets
+
+
 class MarkdownHandler(FileSystemEventHandler):
     """Markdownファイルの作成を監視"""
+
+    def __init__(self, dir_note_map: dict[str, str | None]):
+        super().__init__()
+        self.dir_note_map = dir_note_map
 
     def on_created(self, event):
         if event.is_directory:
@@ -56,10 +79,11 @@ class MarkdownHandler(FileSystemEventHandler):
             logging.info(f"新しいMDファイルを検出: {file_path.name}")
             # ファイルの書き込みが完了するまで少し待機
             time.sleep(0.5)
-            self.process_markdown(file_path)
+            note_id = self.dir_note_map.get(str(file_path.parent))
+            self.process_markdown(file_path, note_id)
 
-    def process_markdown(self, file_path: Path):
-        """MarkdownファイルをNotionに保存し、元ファイルを削除"""
+    def process_markdown(self, file_path: Path, note_id: str | None = None):
+        """MarkdownファイルをNotionに保存し、元ファイルをアーカイブ"""
         try:
             # ファイル読み込み
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -68,29 +92,37 @@ class MarkdownHandler(FileSystemEventHandler):
             # タイトル取得（ファイル名から拡張子を除く）
             title = file_path.stem
 
+            # プロパティを構築
+            properties = {
+                "Name": {
+                    "title": [
+                        {
+                            "text": {
+                                "content": title
+                            }
+                        }
+                    ]
+                }
+            }
+
+            if note_id is not None:
+                properties["Lit Notes"] = {"relation": [{"id": note_id}]}
+
             # Notionページ作成（data_source_id を使用）
             page = notion.pages.create(
                 parent={"data_source_id": DATABASE_ID},
-                properties={
-                    "Name": {
-                        "title": [
-                            {
-                                "text": {
-                                    "content": title
-                                }
-                            }
-                        ]
-                    }
-                },
+                properties=properties,
                 children=self.markdown_to_blocks(content)
             )
 
             logging.info(f"Notionに保存成功: {title}")
             logging.info(f"Page URL: https://notion.so/{page['id'].replace('-', '')}")
 
-            # 元ファイル削除
-            file_path.unlink()
-            logging.info(f"元ファイル削除: {file_path.name}")
+            # ファイルをアーカイブ
+            archive_dir = file_path.parent / "archived"
+            archive_dir.mkdir(exist_ok=True)
+            shutil.move(str(file_path), str(archive_dir / file_path.name))
+            logging.info(f"ファイルをアーカイブ: {file_path.name} → archived/")
 
         except Exception as e:
             logging.error(f"処理エラー ({file_path.name}): {str(e)}")
@@ -173,22 +205,50 @@ class MarkdownHandler(FileSystemEventHandler):
 
 
 def main():
-    """メイン処理"""
     logging.info("NotionSync 起動")
-    logging.info(f"監視ディレクトリ: {WATCH_DIR}")
 
-    # ディレクトリ存在確認
-    watch_path = Path(WATCH_DIR)
-    if not watch_path.exists():
-        logging.error(f"監視ディレクトリが存在しません: {WATCH_DIR}")
+    # 同期対象を設定ファイルから読み込み
+    sync_targets = load_sync_targets()
+    logging.info(f"設定ファイルから {len(sync_targets)} 件の同期対象を読み込み")
+
+    # dir_note_map を構築
+    dir_note_map: dict[str, str | None] = {}
+
+    validated_dirs = []
+    for target in sync_targets:
+        watch_dir = target["directory"]
+        note_id = target.get("note_id")
+        watch_path = Path(watch_dir)
+
+        if not watch_path.exists():
+            logging.warning(f"監視ディレクトリが存在しません: {watch_dir}")
+            try:
+                watch_path.mkdir(parents=True, exist_ok=True)
+                logging.info(f"監視ディレクトリを作成しました: {watch_dir}")
+            except Exception as e:
+                logging.error(f"監視ディレクトリの作成に失敗: {str(e)}")
+                sys.exit(1)
+
+        if not os.access(watch_path, os.R_OK):
+            logging.error(f"監視ディレクトリに読み取り権限がありません: {watch_dir}")
+            sys.exit(1)
+
+        dir_note_map[watch_dir] = note_id
+        validated_dirs.append(watch_dir)
+        logging.info(f"監視対象ディレクトリ: {watch_dir}" + (f" (note_id: {note_id})" if note_id else ""))
+
+    if not validated_dirs:
+        logging.error("監視対象ディレクトリがありません")
         sys.exit(1)
 
-    # 監視開始
-    event_handler = MarkdownHandler()
+    event_handler = MarkdownHandler(dir_note_map)
     observer = Observer()
-    observer.schedule(event_handler, WATCH_DIR, recursive=False)
-    observer.start()
 
+    for watch_dir in validated_dirs:
+        observer.schedule(event_handler, watch_dir, recursive=False)
+        logging.info(f"監視開始: {watch_dir}")
+
+    observer.start()
     logging.info("監視開始 (Ctrl+C で終了)")
 
     try:

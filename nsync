@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+
+PLIST_NAME="com.${USER}.notionsync"
+PLIST_PATH="$HOME/Library/LaunchAgents/${PLIST_NAME}.plist"
+
+usage() {
+    echo "Usage: nsync [--start|--stop|--restart|--status]"
+    exit 1
+}
+
+check_plist() {
+    if [ ! -f "$PLIST_PATH" ]; then
+        echo "Error: plist が見つかりません: $PLIST_PATH"
+        echo "先に setup.sh を実行してください。"
+        exit 1
+    fi
+}
+
+do_start() {
+    check_plist
+    if launchctl list "$PLIST_NAME" &>/dev/null; then
+        echo "NotionSync は既に起動中です。"
+        exit 0
+    fi
+    launchctl bootstrap "gui/$(id -u)" "$PLIST_PATH"
+    echo "NotionSync を起動しました。"
+}
+
+do_stop() {
+    if ! launchctl list "$PLIST_NAME" &>/dev/null; then
+        echo "NotionSync は停止中です。"
+        exit 0
+    fi
+    launchctl bootout "gui/$(id -u)" "$PLIST_PATH"
+    echo "NotionSync を停止しました。"
+}
+
+do_restart() {
+    check_plist
+    if launchctl list "$PLIST_NAME" &>/dev/null; then
+        launchctl bootout "gui/$(id -u)" "$PLIST_PATH"
+    fi
+    launchctl bootstrap "gui/$(id -u)" "$PLIST_PATH"
+    echo "NotionSync を再起動しました。"
+}
+
+do_status() {
+    if launchctl list "$PLIST_NAME" &>/dev/null; then
+        echo "NotionSync: 起動中"
+        launchctl list "$PLIST_NAME"
+    else
+        echo "NotionSync: 停止中"
+    fi
+}
+
+case "${1:-}" in
+    --start)   do_start ;;
+    --stop)    do_stop ;;
+    --restart) do_restart ;;
+    --status)  do_status ;;
+    *)         usage ;;
+esac

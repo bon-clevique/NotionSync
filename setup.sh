@@ -73,17 +73,10 @@ if [ -z "$NOTION_DATABASE_ID" ]; then
     exit 1
 fi
 
-# 監視ディレクトリの設定
-echo "監視するディレクトリのパスを入力してください:"
-echo "(デフォルト: $SCRIPT_DIR)"
-read -r WATCH_DIR
-WATCH_DIR=${WATCH_DIR:-$SCRIPT_DIR}
-
 echo ""
 echo "設定内容:"
 echo "  Python: $PYTHON_PATH"
 echo "  スクリプトディレクトリ: $SCRIPT_DIR"
-echo "  監視ディレクトリ: $WATCH_DIR"
 echo "  Database ID: $NOTION_DATABASE_ID"
 echo ""
 
@@ -105,7 +98,6 @@ sed -e "s|{{USERNAME}}|$USERNAME|g" \
     -e "s|{{SCRIPT_PATH}}|$SCRIPT_DIR|g" \
     -e "s|{{NOTION_TOKEN}}|$NOTION_TOKEN|g" \
     -e "s|{{NOTION_DATABASE_ID}}|$NOTION_DATABASE_ID|g" \
-    -e "s|{{WATCH_DIR}}|$WATCH_DIR|g" \
     -e "s|{{HOME}}|$HOME_DIR|g" \
     "$PLIST_TEMPLATE" > "$PLIST_FILE"
 
@@ -129,12 +121,11 @@ echo "===================================="
 echo "セットアップ完了！"
 echo "===================================="
 echo ""
-echo "監視ディレクトリ: $WATCH_DIR"
+echo "【動作確認】"
+echo "sync_targets.json を編集して監視ディレクトリを設定してください。"
+echo "参考: $SCRIPT_DIR/sync_targets.json.example"
 echo "ログファイル: $HOME_DIR/Library/Logs/NotionSync/notion_sync.log"
 echo ""
-echo "【動作確認】"
-echo "以下のコマンドでテストMDファイルを作成できます:"
-echo "echo \"# テスト\\n\\nこれはテストです。\" > \"$WATCH_DIR/test.md\""
 echo ""
 echo "【ログ確認】"
 echo "tail -f $HOME_DIR/Library/Logs/NotionSync/notion_sync.log"

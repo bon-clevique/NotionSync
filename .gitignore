@@ -1,5 +1,6 @@
 # Notion API Credentials
 .env
+sync_targets.json
 *.plist
 !*.plist.template
 
@@ -56,8 +57,22 @@ dmypy.json
 # Testing
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
+bandit-report.json
 
 # Temporary files
 *.tmp
 *.bak
+
+# Internal Docs
+docs/
+
+# Xcode
+NotionSyncMenuBar/NotionSyncMenuBar.xcodeproj/project.xcworkspace/
+NotionSyncMenuBar/NotionSyncMenuBar.xcodeproj/xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# Icon source files (keep only assets in xcassets)
+open.png
