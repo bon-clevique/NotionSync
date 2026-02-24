@@ -13,6 +13,7 @@ struct NotionSyncMenuBarApp: App {
         eng.notionToken = api.token
         eng.dataSourceId = api.dataSourceId
         eng.configFilePath = "/Users/bon/dev/NotionSync/sync_targets.json"
+        eng.loadConfigTargets()
         self.bookmarkManager = bm
         self._apiSettings = State(initialValue: api)
         self._engine = State(initialValue: eng)
@@ -71,7 +72,7 @@ struct NotionSyncMenuBarApp: App {
         .menuBarExtraStyle(.menu)
 
         Settings {
-            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager, configFilePath: engine.configFilePath)
+            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager, configFilePath: engine.configFilePath, configTargets: engine.displayConfigTargets)
         }
     }
 }

@@ -6,56 +6,36 @@ import Observation
 
 /// Observable store for Notion API credentials.
 ///
-/// Loads from the Keychain on initialisation and persists to the Keychain
-/// whenever `token` or `dataSourceId` are mutated.
+/// Uses UserDefaults for storage. Keychain is avoided in development builds
+/// because ad-hoc code signing causes macOS to prompt for Keychain password
+/// on every rebuild.
+///
+/// TODO: Switch to Keychain for production/App Store builds with proper code signing.
 @Observable
 @MainActor
 final class APISettings {
 
+    private static let tokenKey = "notionToken"
+    private static let dataSourceIdKey = "notionDataSourceId"
+
     // MARK: Properties
 
-    /// Notion Integration Token (secret_…).
     var token: String = "" {
-        didSet { persistToken() }
+        didSet { UserDefaults.standard.set(token, forKey: Self.tokenKey) }
     }
 
-    /// Notion data source (database) ID.
     var dataSourceId: String = "" {
-        didSet { persistDataSourceId() }
+        didSet { UserDefaults.standard.set(dataSourceId, forKey: Self.dataSourceIdKey) }
     }
+
+    private(set) var isLoaded = false
 
     // MARK: Init
 
     init() {
-        token = KeychainManager.load(key: "notionToken") ?? ""
-        dataSourceId = KeychainManager.load(key: "dataSourceId") ?? ""
-    }
-
-    // MARK: Private
-
-    private func persistToken() {
-        do {
-            if token.isEmpty {
-                KeychainManager.delete(key: "notionToken")
-            } else {
-                try KeychainManager.save(key: "notionToken", value: token)
-            }
-        } catch {
-            // Non-fatal: log and continue — UI should not crash on Keychain errors.
-            print("[APISettings] Failed to persist token: \(error.localizedDescription)")
-        }
-    }
-
-    private func persistDataSourceId() {
-        do {
-            if dataSourceId.isEmpty {
-                KeychainManager.delete(key: "dataSourceId")
-            } else {
-                try KeychainManager.save(key: "dataSourceId", value: dataSourceId)
-            }
-        } catch {
-            print("[APISettings] Failed to persist dataSourceId: \(error.localizedDescription)")
-        }
+        token = UserDefaults.standard.string(forKey: Self.tokenKey) ?? ""
+        dataSourceId = UserDefaults.standard.string(forKey: Self.dataSourceIdKey) ?? ""
+        isLoaded = true
     }
 }
 
@@ -66,6 +46,7 @@ struct SettingsView: View {
     var apiSettings: APISettings
     var bookmarkManager: BookmarkManager
     var configFilePath: String = ""
+    var configTargets: [SyncTargetConfig] = []
 
     var body: some View {
         TabView {
@@ -75,7 +56,7 @@ struct SettingsView: View {
             APISettingsView(apiSettings: apiSettings)
                 .tabItem { Label("API", systemImage: "key") }
 
-            SyncTargetsSettingsView(bookmarkManager: bookmarkManager, configFilePath: configFilePath)
+            SyncTargetsSettingsView(bookmarkManager: bookmarkManager, configFilePath: configFilePath, configTargets: configTargets)
                 .tabItem { Label("Sync Targets", systemImage: "folder") }
         }
         .frame(width: 480, height: 360)
@@ -155,7 +136,7 @@ struct APISettingsView: View {
     var body: some View {
         Form {
             Section("Notion Integration") {
-                SecureField("Integration Token (secret_…)", text: $apiSettings.token)
+                SecureField("内部インテグレーションシークレット (ntn_…)", text: $apiSettings.token)
                     .textContentType(.password)
                     .onChange(of: apiSettings.token) { _, _ in
                         connectionStatus = .untested
@@ -219,104 +200,79 @@ struct SyncTargetsSettingsView: View {
 
     var bookmarkManager: BookmarkManager
     var configFilePath: String = ""
-
-    @State private var selectedTargetID: UUID?
-    @State private var editDisplayName: String = ""
-    @State private var editNoteId: String = ""
-
-    private var selectedTarget: SyncTarget? {
-        guard let id = selectedTargetID else { return nil }
-        return bookmarkManager.targets.first { $0.id == id }
-    }
+    var configTargets: [SyncTargetConfig] = []
 
     var body: some View {
         Form {
             if !configFilePath.isEmpty {
                 Section {
-                    Label("Targets loaded from sync_targets.json", systemImage: "doc.text")
+                    Label("sync_targets.json から読み込み", systemImage: "doc.text")
                         .foregroundStyle(.secondary)
                     Text(configFilePath)
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .textSelection(.enabled)
                 }
-            }
 
-            Section("Watched Directories") {
-                if bookmarkManager.targets.isEmpty {
-                    Text("No directories added yet.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    List(selection: $selectedTargetID) {
-                        ForEach(bookmarkManager.targets) { target in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(target.displayName)
-                                        .fontWeight(.medium)
-                                    if let noteId = target.noteId, !noteId.isEmpty {
-                                        Text("Note ID: \(noteId)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
+                Section("同期ディレクトリ") {
+                    if configTargets.isEmpty {
+                        Text("ターゲットが設定されていません")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(configTargets, id: \.directory) { target in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(URL(fileURLWithPath: target.directory).lastPathComponent)
+                                    .fontWeight(.medium)
+                                Text(target.directory)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if let noteId = target.resolvedNoteId {
+                                    Text("Lit Note: \(target.litNote ?? noteId)")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
                                 }
-                                Spacer()
-                                Button("Remove") {
-                                    bookmarkManager.removeTarget(target)
-                                    if selectedTargetID == target.id {
-                                        selectedTargetID = nil
-                                    }
-                                }
-                                .buttonStyle(.borderless)
-                                .foregroundStyle(.red)
                             }
-                            .tag(target.id)
+                            .padding(.vertical, 2)
                         }
                     }
-                    .listStyle(.bordered)
-                    .frame(minHeight: 80)
                 }
-
-                Button("Add Directory…") {
-                    _ = bookmarkManager.addDirectory()
-                }
-                .disabled(!configFilePath.isEmpty)
-            }
-
-            if let target = selectedTarget {
-                Section("Edit — \(target.displayName)") {
-                    TextField("Display Name", text: $editDisplayName)
-                        .onSubmit { commitEdits() }
-
-                    TextField("Note ID (optional)", text: $editNoteId)
-                        .onSubmit { commitEdits() }
-
-                    Button("Save") {
-                        commitEdits()
+            } else {
+                Section("Watched Directories") {
+                    if bookmarkManager.targets.isEmpty {
+                        Text("No directories added yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        List {
+                            ForEach(bookmarkManager.targets) { target in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(target.displayName)
+                                            .fontWeight(.medium)
+                                        if let noteId = target.noteId, !noteId.isEmpty {
+                                            Text("Note ID: \(noteId)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    Button("Remove") {
+                                        bookmarkManager.removeTarget(target)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .foregroundStyle(.red)
+                                }
+                            }
+                        }
+                        .listStyle(.bordered)
+                        .frame(minHeight: 80)
                     }
-                    .disabled(editDisplayName.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-                .onAppear { loadEdits(for: target) }
-                .onChange(of: selectedTargetID) { _, _ in
-                    if let t = selectedTarget { loadEdits(for: t) }
+
+                    Button("Add Directory…") {
+                        _ = bookmarkManager.addDirectory()
+                    }
                 }
             }
         }
         .formStyle(.grouped)
-    }
-
-    private func loadEdits(for target: SyncTarget) {
-        editDisplayName = target.displayName
-        editNoteId = target.noteId ?? ""
-    }
-
-    private func commitEdits() {
-        guard var target = selectedTarget else { return }
-        let trimmed = editDisplayName.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
-        target.displayName = trimmed
-        target.noteId = editNoteId.trimmingCharacters(in: .whitespaces).isEmpty
-            ? nil
-            : editNoteId.trimmingCharacters(in: .whitespaces)
-        bookmarkManager.updateTarget(target)
     }
 }

@@ -55,9 +55,12 @@ final class SyncEngine {
         var noteId: String?
     }
 
+    /// Parsed config targets for display in SettingsView (available before start()).
+    private(set) var displayConfigTargets: [SyncTargetConfig] = []
+
     var activeTargetCount: Int {
         if !configFilePath.isEmpty {
-            return activeTargets.count
+            return isRunning ? activeTargets.count : displayConfigTargets.count
         }
         return bookmarkManager.targets.count
     }
@@ -66,6 +69,20 @@ final class SyncEngine {
 
     init(bookmarkManager: BookmarkManager) {
         self.bookmarkManager = bookmarkManager
+    }
+
+    /// Loads config targets from the JSON file for display purposes.
+    /// Call after setting `configFilePath`.
+    func loadConfigTargets() {
+        guard !configFilePath.isEmpty else { return }
+        let url = URL(fileURLWithPath: configFilePath)
+        guard let data = try? Data(contentsOf: url),
+              let configs = try? JSONDecoder().decode([SyncTargetConfig].self, from: data) else {
+            logger.warning("loadConfigTargets: failed to parse \(self.configFilePath, privacy: .public)")
+            return
+        }
+        displayConfigTargets = configs
+        logger.info("loadConfigTargets: loaded \(configs.count, privacy: .public) target(s) for display")
     }
 
     // MARK: - Lifecycle
@@ -172,6 +189,7 @@ final class SyncEngine {
 
     /// Reconciles running watchers with new config entries.
     private func reconcileTargets(_ configs: [SyncTargetConfig]) {
+        displayConfigTargets = configs
         let newPaths = Set(configs.map { $0.directory })
         let currentPaths = Set(activeTargets.keys)
 
