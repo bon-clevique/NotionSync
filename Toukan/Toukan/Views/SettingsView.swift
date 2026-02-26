@@ -426,23 +426,7 @@ struct SyncTargetsSettingsView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(bookmarkManager.targets) { target in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(target.displayName)
-                                    .fontWeight(.medium)
-                                if let noteId = target.noteId, !noteId.isEmpty {
-                                    Text("Note ID: \(noteId)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            Spacer()
-                            Button("削除") {
-                                bookmarkManager.removeTarget(target)
-                            }
-                            .buttonStyle(.borderless)
-                            .foregroundStyle(.red)
-                        }
+                        SyncTargetRow(target: target, bookmarkManager: bookmarkManager)
                     }
                 }
 
@@ -450,7 +434,131 @@ struct SyncTargetsSettingsView: View {
                     _ = bookmarkManager.addDirectory()
                 }
             }
+
+            Section {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("同期の仕組み", systemImage: "info.circle")
+                        .font(.callout.weight(.medium))
+                    Text("ディレクトリ直下の .md ファイルのみが Notion に連携されます。サブディレクトリ内のファイルや .md 以外のファイルは無視されます。連携済みのファイルはアーカイブ先に自動で移動されるため、再アップロードされることはありません。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
+    }
+}
+
+// MARK: - SyncTargetRow
+
+private struct SyncTargetRow: View {
+
+    let target: SyncTarget
+    var bookmarkManager: BookmarkManager
+
+    @State private var archiveDirName: String = ""
+    @State private var archiveDirExists: Bool? = nil
+    @State private var createError: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Header: name + delete
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(target.displayName)
+                        .fontWeight(.medium)
+                    if let noteId = target.noteId, !noteId.isEmpty {
+                        Text("Note ID: \(noteId)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                Button("削除") {
+                    bookmarkManager.removeTarget(target)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.red)
+            }
+
+            // Archive directory
+            HStack(spacing: 6) {
+                Text("アーカイブ先:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                TextField("archived", text: $archiveDirName)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                    .frame(maxWidth: 160)
+                    .onSubmit { saveAndCheck() }
+
+                if let exists = archiveDirExists {
+                    if exists {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.caption)
+                            .help("ディレクトリが存在します")
+                    } else {
+                        Button("作成") { createArchiveDir() }
+                            .font(.caption)
+                            .buttonStyle(.borderless)
+                    }
+                }
+            }
+
+            if let error = createError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.vertical, 2)
+        .onAppear {
+            archiveDirName = target.archiveDirName
+            checkArchiveDirExists()
+        }
+        .onDisappear { saveAndCheck() }
+    }
+
+    private func saveAndCheck() {
+        let sanitised = SyncTarget.sanitiseArchiveDirName(archiveDirName)
+        archiveDirName = sanitised
+        var updated = target
+        updated.archiveDirName = sanitised
+        bookmarkManager.updateTarget(updated)
+        createError = nil
+        checkArchiveDirExists()
+    }
+
+    private func checkArchiveDirExists() {
+        guard let url = bookmarkManager.startAccessing(target) else {
+            archiveDirExists = nil
+            return
+        }
+        defer { bookmarkManager.stopAccessing(url) }
+        let dirName = archiveDirName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !dirName.isEmpty else {
+            archiveDirExists = nil
+            return
+        }
+        let archiveURL = url.appendingPathComponent(dirName, isDirectory: true)
+        var isDir: ObjCBool = false
+        archiveDirExists = FileManager.default.fileExists(atPath: archiveURL.path, isDirectory: &isDir) && isDir.boolValue
+    }
+
+    private func createArchiveDir() {
+        guard let url = bookmarkManager.startAccessing(target) else { return }
+        defer { bookmarkManager.stopAccessing(url) }
+        let dirName = SyncTarget.sanitiseArchiveDirName(archiveDirName)
+        let archiveURL = url.appendingPathComponent(dirName, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: archiveURL, withIntermediateDirectories: true)
+            createError = nil
+        } catch {
+            createError = "作成失敗: \(error.localizedDescription)"
+        }
+        archiveDirName = dirName
+        saveAndCheck()
     }
 }

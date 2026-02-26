@@ -181,8 +181,9 @@ final class DirectoryWatcher: @unchecked Sendable {
     }
 
     /// Returns the set of `.md` file names (lastPathComponent) currently present
-    /// directly inside `directoryURL`. Files inside an `archived/` subdirectory
-    /// are excluded, and the extension check is case-insensitive.
+    /// directly inside `directoryURL`. Only top-level regular files with a `.md`
+    /// extension are included; subdirectories (including any archive directory)
+    /// are excluded by the `isRegularFile` check. The extension check is case-insensitive.
     private func currentMDFiles(in directoryURL: URL) -> Set<String> {
         let fm = FileManager.default
 
@@ -197,14 +198,9 @@ final class DirectoryWatcher: @unchecked Sendable {
 
         var result = Set<String>()
         for itemURL in contents {
-            // Exclude the `archived/` subdirectory and any items inside it.
-            // Because we only enumerate the top level here, we just need to
-            // skip the `archived` directory entry itself.
-            if itemURL.lastPathComponent.lowercased() == "archived" {
-                continue
-            }
-
             // Only accept regular `.md` files.
+            // Subdirectories (including the archive directory) are excluded
+            // by the isRegularFile check below.
             guard
                 itemURL.pathExtension.lowercased() == "md",
                 (try? itemURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true

@@ -8,7 +8,7 @@ import Observation
 ///
 /// Observes watched directories via ``DirectoryWatcher``, parses detected Markdown
 /// files, uploads them to Notion using ``NotionAPIClient``, and archives processed
-/// files into an `archived/` subdirectory.
+/// files into a configurable subdirectory (per ``SyncTarget``).
 @Observable
 @MainActor
 final class SyncEngine {
@@ -137,12 +137,19 @@ final class SyncEngine {
     nonisolated private func handleNewFile(_ fileURL: URL, in directoryURL: URL) {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let noteId = bookmarkManager.targets.first { target in
+            let target = bookmarkManager.targets.first { target in
                 bookmarkManager.resolveURL(for: target)?.standardizedFileURL
                     == directoryURL.standardizedFileURL
-            }?.noteId
+            }
+            if target == nil {
+                self.logger.warning("handleNewFile: no matching target for '\(directoryURL.path, privacy: .public)' — using default archive dir")
+            }
 
-            await processFile(fileURL, noteId: noteId)
+            await processFile(
+                fileURL,
+                noteId: target?.noteId,
+                archiveDirName: target?.archiveDirName ?? "archived"
+            )
         }
     }
 
@@ -157,7 +164,7 @@ final class SyncEngine {
     /// concurrent scan + watcher events.
     private var processingFiles: Set<String> = []
 
-    private func processFile(_ fileURL: URL, noteId: String?) async {
+    private func processFile(_ fileURL: URL, noteId: String?, archiveDirName: String) async {
         let filename = fileURL.lastPathComponent
         let canonicalPath = fileURL.resolvingSymlinksInPath().path
 
@@ -219,7 +226,7 @@ final class SyncEngine {
 
         // 5. Archive the processed file
         let directoryURL = fileURL.deletingLastPathComponent()
-        let archivedDir = directoryURL.appendingPathComponent("archived", isDirectory: true)
+        let archivedDir = directoryURL.appendingPathComponent(archiveDirName, isDirectory: true)
 
         do {
             try FileManager.default.createDirectory(

@@ -9,17 +9,40 @@ struct SyncTarget: Codable, Identifiable, Sendable {
     let id: UUID
     var displayName: String
     var noteId: String?
+    var archiveDirName: String
     var bookmarkData: Data
 
-    init(url: URL, displayName: String, noteId: String? = nil) throws {
+    init(url: URL, displayName: String, noteId: String? = nil, archiveDirName: String = "archived") throws {
         self.id = UUID()
         self.displayName = displayName
         self.noteId = noteId
+        self.archiveDirName = archiveDirName
         self.bookmarkData = try url.bookmarkData(
             options: .withSecurityScope,
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
+    }
+
+    // Backward-compatible decoding: existing targets without archiveDirName get "archived"
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        noteId = try container.decodeIfPresent(String.self, forKey: .noteId)
+        archiveDirName = Self.sanitiseArchiveDirName(
+            try container.decodeIfPresent(String.self, forKey: .archiveDirName) ?? "archived"
+        )
+        bookmarkData = try container.decode(Data.self, forKey: .bookmarkData)
+    }
+
+    /// Strips path separators and leading dots to prevent directory traversal.
+    static func sanitiseArchiveDirName(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safe = trimmed
+            .components(separatedBy: "/").joined()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        return safe.isEmpty ? "archived" : safe
     }
 }
 
@@ -77,7 +100,7 @@ struct SyncTarget: Codable, Identifiable, Sendable {
         logger.info("Removed sync target: \(target.displayName, privacy: .public) (id: \(target.id.uuidString, privacy: .public))")
     }
 
-    /// Updates the noteId and/or displayName of an existing target.
+    /// Replaces a stored target with the provided value.
     func updateTarget(_ target: SyncTarget) {
         guard let index = targets.firstIndex(where: { $0.id == target.id }) else {
             logger.warning("updateTarget: target not found with id \(target.id.uuidString, privacy: .public)")
