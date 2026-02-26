@@ -96,6 +96,9 @@ struct SettingsView: View {
                 .tabItem { Label("Sync Targets", systemImage: "folder") }
         }
         .frame(width: 480, height: 520)
+        .onAppear {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 }
 
