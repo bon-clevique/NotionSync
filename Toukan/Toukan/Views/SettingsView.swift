@@ -83,17 +83,20 @@ struct SettingsView: View {
 
     var apiSettings: APISettings
     var bookmarkManager: BookmarkManager
+    var languageManager: LanguageManager
+
+    private var strings: Strings { languageManager.strings }
 
     var body: some View {
         TabView {
-            GeneralSettingsView()
-                .tabItem { Label("General", systemImage: "gear") }
+            GeneralSettingsView(languageManager: languageManager)
+                .tabItem { Label(strings.tabGeneral, systemImage: "gear") }
 
-            APISettingsView(apiSettings: apiSettings)
-                .tabItem { Label("API", systemImage: "key") }
+            APISettingsView(apiSettings: apiSettings, languageManager: languageManager)
+                .tabItem { Label(strings.tabAPI, systemImage: "key") }
 
-            SyncTargetsSettingsView(bookmarkManager: bookmarkManager)
-                .tabItem { Label("Sync Targets", systemImage: "folder") }
+            SyncTargetsSettingsView(bookmarkManager: bookmarkManager, languageManager: languageManager)
+                .tabItem { Label(strings.tabSyncTargets, systemImage: "folder") }
         }
         .frame(width: 480, height: 520)
         .onAppear {
@@ -106,24 +109,43 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
 
-    @State private var isLaunchAtLoginEnabled: Bool = false
+    @Bindable var languageManager: LanguageManager
+    @State private var launchAtLoginError: String?
+
+    private var strings: Strings { languageManager.strings }
+
+    private var isLaunchAtLoginEnabled: Bool {
+        SMAppService.mainApp.status == .enabled
+    }
 
     var body: some View {
         Form {
             Section {
-                Toggle("Launch at Login", isOn: $isLaunchAtLoginEnabled)
-                    .onChange(of: isLaunchAtLoginEnabled) { _, newValue in
-                        applyLaunchAtLogin(newValue)
+                Toggle(strings.launchAtLogin, isOn: Binding(
+                    get: { isLaunchAtLoginEnabled },
+                    set: { toggleLaunchAtLogin($0) }
+                ))
+
+                if let error = launchAtLoginError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
+            Section {
+                Picker(strings.languageLabel, selection: $languageManager.language) {
+                    ForEach(AppLanguage.allCases) { lang in
+                        Text(lang.displayName).tag(lang)
                     }
+                }
             }
         }
         .formStyle(.grouped)
-        .onAppear {
-            isLaunchAtLoginEnabled = SMAppService.mainApp.status == .enabled
-        }
     }
 
-    private func applyLaunchAtLogin(_ enable: Bool) {
+    private func toggleLaunchAtLogin(_ enable: Bool) {
+        launchAtLoginError = nil
         do {
             if enable {
                 try SMAppService.mainApp.register()
@@ -131,8 +153,7 @@ struct GeneralSettingsView: View {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            // Revert the toggle if the system call fails.
-            isLaunchAtLoginEnabled = !enable
+            launchAtLoginError = strings.launchAtLoginError(error.localizedDescription)
         }
     }
 }
@@ -145,16 +166,12 @@ private enum ConnectionStatus: Equatable {
     case success(databaseName: String?)
     case failed(String)
 
-    var label: String {
+    func label(_ strings: Strings) -> String {
         switch self {
-        case .untested:  return "Not tested"
-        case .testing:   return "Testing…"
-        case .success(let name):
-            if let name, !name.isEmpty {
-                return "Connected — \(name)"
-            }
-            return "Connected"
-        case .failed(let msg): return "Failed: \(msg)"
+        case .untested:  return strings.statusNotTested
+        case .testing:   return strings.statusTesting
+        case .success(let name): return strings.statusConnected(name: name)
+        case .failed(let msg): return strings.statusFailed(message: msg)
         }
     }
 
@@ -182,16 +199,19 @@ private enum ResolveStatus: Equatable {
 struct APISettingsView: View {
 
     @Bindable var apiSettings: APISettings
+    var languageManager: LanguageManager
 
     @State private var connectionStatus: ConnectionStatus = .untested
     @State private var showClearConfirmation = false
     @State private var shareLink: String = ""
     @State private var resolveStatus: ResolveStatus = .idle
 
+    private var strings: Strings { languageManager.strings }
+
     var body: some View {
         Form {
-            Section("Notion Integration") {
-                SecureField("内部インテグレーションシークレット (ntn_…)", text: $apiSettings.token)
+            Section(strings.notionIntegration) {
+                SecureField(strings.tokenPlaceholder, text: $apiSettings.token)
                     .textContentType(.password)
                     .onChange(of: apiSettings.token) { _, _ in
                         connectionStatus = .untested
@@ -204,15 +224,15 @@ struct APISettingsView: View {
                     }
             }
 
-            Section("共有リンクから Data Source ID を取得") {
-                TextField("https://notion.so/… を貼り付け", text: $shareLink)
+            Section(strings.shareLinkSection) {
+                TextField(strings.shareLinkPlaceholder, text: $shareLink)
                     .textContentType(.URL)
                     .onChange(of: shareLink) { _, _ in
                         resolveStatus = .idle
                     }
 
                 HStack {
-                    Button("取得") {
+                    Button(strings.resolve) {
                         resolveShareLink()
                     }
                     .disabled(
@@ -243,7 +263,7 @@ struct APISettingsView: View {
 
             Section {
                 HStack {
-                    Button("Test Connection") {
+                    Button(strings.testConnection) {
                         runConnectionTest()
                     }
                     .disabled(
@@ -254,7 +274,7 @@ struct APISettingsView: View {
                     Spacer()
 
                     if connectionStatus != .untested {
-                        Label(connectionStatus.label, systemImage: statusIcon)
+                        Label(connectionStatus.label(strings), systemImage: statusIcon)
                             .foregroundStyle(connectionStatus.color)
                             .font(.callout)
                     }
@@ -262,16 +282,16 @@ struct APISettingsView: View {
             }
 
             Section {
-                Button("資格情報を削除", role: .destructive) {
+                Button(strings.deleteCredentials, role: .destructive) {
                     showClearConfirmation = true
                 }
                 .disabled(apiSettings.token.isEmpty && apiSettings.dataSourceId.isEmpty)
                 .confirmationDialog(
-                    "保存済みのAPIトークンとData Source IDを削除しますか？",
+                    strings.deleteCredentialsConfirm,
                     isPresented: $showClearConfirmation,
                     titleVisibility: .visible
                 ) {
-                    Button("削除", role: .destructive) {
+                    Button(strings.delete, role: .destructive) {
                         apiSettings.clearCredentials()
                         connectionStatus = .untested
                     }
@@ -279,24 +299,24 @@ struct APISettingsView: View {
             }
 
             Section {
-                DisclosureGroup("キーチェーンについて") {
+                DisclosureGroup(strings.aboutKeychain) {
                     VStack(alignment: .leading, spacing: 12) {
                         keychainInfoRow(
                             icon: "questionmark.circle",
-                            title: "なぜシステムがパスワードを求めるのか",
-                            body: "ToukanはAPIトークンの安全な保管にmacOS標準のキーチェーンを使用します。初回アクセス時やアプリの署名が変わった際に、macOSがアクセス許可を確認するダイアログを表示することがあります。これはmacOSのセキュリティ機構による正常な動作です。"
+                            title: strings.keychainWhyTitle,
+                            body: strings.keychainWhyBody
                         )
 
                         keychainInfoRow(
                             icon: "lock.shield",
-                            title: "何を使い、何の目的か",
-                            body: "macOSキーチェーン（システム標準の暗号化された資格情報保管庫）にAPIトークンを保存します。キーチェーンに保存されたデータはmacOSにより暗号化され、Toukanのみがアクセスできます。"
+                            title: strings.keychainWhatTitle,
+                            body: strings.keychainWhatBody
                         )
 
                         keychainInfoRow(
                             icon: "xmark.shield",
-                            title: "何をしないか",
-                            body: "APIトークンを外部サーバーに送信しません（Notion APIへの通信のみ）。他のアプリのキーチェーン項目にアクセスしません。Data Source IDは機密情報ではないため、キーチェーンではなく設定値として保存します。"
+                            title: strings.keychainNotTitle,
+                            body: strings.keychainNotBody
                         )
                     }
                     .padding(.vertical, 4)
@@ -333,7 +353,7 @@ struct APISettingsView: View {
         let input = shareLink.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard let databaseId = Self.extractDatabaseId(from: input) else {
-            resolveStatus = .failed("リンクからIDを抽出できません")
+            resolveStatus = .failed(strings.resolveCannotExtract)
             return
         }
 
@@ -342,7 +362,7 @@ struct APISettingsView: View {
             do {
                 let db = try await NotionAPIClient(token: token).fetchDatabase(databaseId: databaseId)
                 guard let ds = db.dataSources.first else {
-                    resolveStatus = .failed("Data Source が見つかりません")
+                    resolveStatus = .failed(strings.resolveNoDataSource)
                     return
                 }
                 apiSettings.dataSourceId = ds.id
@@ -420,29 +440,32 @@ struct APISettingsView: View {
 struct SyncTargetsSettingsView: View {
 
     var bookmarkManager: BookmarkManager
+    var languageManager: LanguageManager
+
+    private var strings: Strings { languageManager.strings }
 
     var body: some View {
         Form {
-            Section("同期ディレクトリ") {
+            Section(strings.syncDirectories) {
                 if bookmarkManager.targets.isEmpty {
-                    Text("ディレクトリが追加されていません")
+                    Text(strings.noDirectoriesAdded)
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(bookmarkManager.targets) { target in
-                        SyncTargetRow(target: target, bookmarkManager: bookmarkManager)
+                        SyncTargetRow(target: target, bookmarkManager: bookmarkManager, languageManager: languageManager)
                     }
                 }
 
-                Button("ディレクトリを追加…") {
+                Button(strings.addDirectory) {
                     _ = bookmarkManager.addDirectory()
                 }
             }
 
             Section {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label("同期の仕組み", systemImage: "info.circle")
+                    Label(strings.howSyncWorksTitle, systemImage: "info.circle")
                         .font(.callout.weight(.medium))
-                    Text("ディレクトリ直下の .md ファイルのみが Notion に連携されます。サブディレクトリ内のファイルや .md 以外のファイルは無視されます。連携済みのファイルはアーカイブ先に自動で移動されるため、再アップロードされることはありません。")
+                    Text(strings.howSyncWorksBody)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -458,10 +481,13 @@ private struct SyncTargetRow: View {
 
     let target: SyncTarget
     var bookmarkManager: BookmarkManager
+    var languageManager: LanguageManager
 
     @State private var archiveDirName: String = ""
     @State private var archiveDirExists: Bool? = nil
     @State private var createError: String? = nil
+
+    private var strings: Strings { languageManager.strings }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -477,7 +503,7 @@ private struct SyncTargetRow: View {
                     }
                 }
                 Spacer()
-                Button("削除") {
+                Button(strings.remove) {
                     bookmarkManager.removeTarget(target)
                 }
                 .buttonStyle(.borderless)
@@ -486,7 +512,7 @@ private struct SyncTargetRow: View {
 
             // Archive directory
             HStack(spacing: 6) {
-                Text("アーカイブ先:")
+                Text(strings.archiveTo)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -501,9 +527,9 @@ private struct SyncTargetRow: View {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                             .font(.caption)
-                            .help("ディレクトリが存在します")
+                            .help(strings.directoryExists)
                     } else {
-                        Button("作成") { createArchiveDir() }
+                        Button(strings.create) { createArchiveDir() }
                             .font(.caption)
                             .buttonStyle(.borderless)
                     }
@@ -559,7 +585,7 @@ private struct SyncTargetRow: View {
             try FileManager.default.createDirectory(at: archiveURL, withIntermediateDirectories: true)
             createError = nil
         } catch {
-            createError = "作成失敗: \(error.localizedDescription)"
+            createError = strings.createFailed(error: error.localizedDescription)
         }
         archiveDirName = dirName
         saveAndCheck()

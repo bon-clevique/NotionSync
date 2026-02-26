@@ -4,6 +4,7 @@ import SwiftUI
 struct ToukanApp: App {
     @State private var engine: SyncEngine
     @State private var apiSettings: APISettings
+    @State private var languageManager: LanguageManager
     private let bookmarkManager: BookmarkManager
 
     init() {
@@ -11,15 +12,17 @@ struct ToukanApp: App {
         let api = APISettings()
         let eng = SyncEngine(bookmarkManager: bm)
         eng.configure(token: api.token, dataSourceId: api.dataSourceId)
+        let lm = LanguageManager()
 
         self.bookmarkManager = bm
         self._apiSettings = State(initialValue: api)
         self._engine = State(initialValue: eng)
+        self._languageManager = State(initialValue: lm)
     }
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarContent(engine: engine, apiSettings: apiSettings)
+            MenuBarContent(engine: engine, apiSettings: apiSettings, languageManager: languageManager)
         } label: {
             Image(engine.isRunning ? "Running" : "Stopped")
                 .renderingMode(.template)
@@ -27,7 +30,7 @@ struct ToukanApp: App {
         .menuBarExtraStyle(.menu)
 
         Settings {
-            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager)
+            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager, languageManager: languageManager)
         }
     }
 }
@@ -38,17 +41,20 @@ private struct MenuBarContent: View {
 
     var engine: SyncEngine
     var apiSettings: APISettings
+    var languageManager: LanguageManager
     @Environment(\.openSettings) private var openSettings
+
+    private var strings: Strings { languageManager.strings }
 
     var body: some View {
         if engine.isRunning {
-            Text("Toukan: Running (\(engine.activeTargetCount) dirs)")
+            Text(strings.menuRunning(count: engine.activeTargetCount))
         } else {
-            Text("Toukan: Stopped")
+            Text(strings.menuStopped)
         }
 
         if let file = engine.lastSyncedFile, let date = engine.lastSyncedDate {
-            Text("Last: \(file) (\(date, format: .relative(presentation: .named)))")
+            Text("\(strings.lastLabel): \(file) (\(date, format: .relative(presentation: .named)))")
                 .foregroundStyle(.secondary)
         }
 
@@ -60,11 +66,11 @@ private struct MenuBarContent: View {
         Divider()
 
         if engine.isRunning {
-            Button("Stop") {
+            Button(strings.menuStop) {
                 engine.stop()
             }
         } else {
-            Button("Start") {
+            Button(strings.menuStart) {
                 engine.configure(token: apiSettings.token, dataSourceId: apiSettings.dataSourceId)
                 engine.start()
             }
@@ -73,7 +79,7 @@ private struct MenuBarContent: View {
 
         Divider()
 
-        Button("Settings...") {
+        Button(strings.menuSettings) {
             openSettings()
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -81,7 +87,7 @@ private struct MenuBarContent: View {
 
         Divider()
 
-        Button("Quit") {
+        Button(strings.menuQuit) {
             engine.stop()
             NSApplication.shared.terminate(nil)
         }

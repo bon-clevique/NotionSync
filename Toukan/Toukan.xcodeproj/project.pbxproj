@@ -19,6 +19,7 @@
 		AA0001010000000000000010 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000014 /* SyncEngine.swift */; };
 		AA0001010000000000000011 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000015 /* KeychainManager.swift */; };
 		AA0001010000000000000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000016 /* SettingsView.swift */; };
+		AA0001010000000000000013 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000017 /* Localization.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +47,7 @@
 		BB0001010000000000000014 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		BB0001010000000000000015 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		BB0001010000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		BB0001010000000000000017 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		BB0001010000000000000010 /* Toukan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Toukan.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0001010000000000000011 /* ToukanTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ToukanTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -81,6 +83,7 @@
 			isa = PBXGroup;
 			children = (
 				BB0001010000000000000001 /* ToukanApp.swift */,
+				BB0001010000000000000017 /* Localization.swift */,
 				DD0001010000000000000007 /* Models */,
 				DD0001010000000000000004 /* Services */,
 				DD0001010000000000000006 /* Views */,
@@ -237,6 +240,7 @@
 				AA0001010000000000000010 /* SyncEngine.swift in Sources */,
 				AA0001010000000000000011 /* KeychainManager.swift in Sources */,
 				AA0001010000000000000012 /* SettingsView.swift in Sources */,
+				AA0001010000000000000013 /* Localization.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
