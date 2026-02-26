@@ -281,13 +281,13 @@ struct APISettingsView: View {
                         keychainInfoRow(
                             icon: "questionmark.circle",
                             title: "なぜシステムがパスワードを求めるのか",
-                            body: "NotionSyncはAPIトークンの安全な保管にmacOS標準のキーチェーンを使用します。初回アクセス時やアプリの署名が変わった際に、macOSがアクセス許可を確認するダイアログを表示することがあります。これはmacOSのセキュリティ機構による正常な動作です。"
+                            body: "ToukanはAPIトークンの安全な保管にmacOS標準のキーチェーンを使用します。初回アクセス時やアプリの署名が変わった際に、macOSがアクセス許可を確認するダイアログを表示することがあります。これはmacOSのセキュリティ機構による正常な動作です。"
                         )
 
                         keychainInfoRow(
                             icon: "lock.shield",
                             title: "何を使い、何の目的か",
-                            body: "macOSキーチェーン（システム標準の暗号化された資格情報保管庫）にAPIトークンを保存します。キーチェーンに保存されたデータはmacOSにより暗号化され、NotionSyncのみがアクセスできます。"
+                            body: "macOSキーチェーン（システム標準の暗号化された資格情報保管庫）にAPIトークンを保存します。キーチェーンに保存されたデータはmacOSにより暗号化され、Toukanのみがアクセスできます。"
                         )
 
                         keychainInfoRow(

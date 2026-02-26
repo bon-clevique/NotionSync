@@ -31,7 +31,7 @@ struct SyncTarget: Codable, Identifiable, Sendable {
 
     private(set) var targets: [SyncTarget] = []
 
-    private let logger = Logger(subsystem: "com.bon.NotionSyncMenuBar", category: "Bookmark")
+    private let logger = Logger(subsystem: "com.bon.Toukan", category: "Bookmark")
     private let defaultsKey = "syncTargets"
 
     // MARK: Lifecycle

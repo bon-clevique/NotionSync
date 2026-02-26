@@ -19,8 +19,8 @@ jobs:
       - name: Build
         run: |
           xcodebuild build \
-            -project NotionSyncMenuBar/NotionSyncMenuBar.xcodeproj \
-            -scheme NotionSyncMenuBar \
+            -project Toukan/Toukan.xcodeproj \
+            -scheme Toukan \
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_ALLOWED=NO
@@ -28,8 +28,8 @@ jobs:
       - name: Test
         run: |
           xcodebuild test \
-            -project NotionSyncMenuBar/NotionSyncMenuBar.xcodeproj \
-            -scheme NotionSyncMenuBar \
+            -project Toukan/Toukan.xcodeproj \
+            -scheme Toukan \
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_ALLOWED=NO

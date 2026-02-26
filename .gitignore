@@ -6,8 +6,8 @@ Icon
 ._*
 
 # Xcode
-NotionSyncMenuBar/NotionSyncMenuBar.xcodeproj/project.xcworkspace/
-NotionSyncMenuBar/NotionSyncMenuBar.xcodeproj/xcuserdata/
+Toukan/Toukan.xcodeproj/project.xcworkspace/
+Toukan/Toukan.xcodeproj/xcuserdata/
 DerivedData/
 *.xcuserstate
 *.ipa
@@ -32,18 +32,8 @@ DerivedData/
 # Internal Docs
 docs/
 
-# Legacy (Python era — may still exist on disk)
-__pycache__/
-*.pyc
-.coverage
-coverage.xml
-htmlcov/
-.mypy_cache/
-.pytest_cache/
-bandit-report.json
-sync_targets.json
-com.bon.notionsync.plist
+# Secrets
 .env
 
 # Icon source files (keep only assets in xcassets)
-open.png
+image_dump/

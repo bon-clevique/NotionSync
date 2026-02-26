@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct NotionSyncMenuBarApp: App {
+struct ToukanApp: App {
     @State private var engine: SyncEngine
     @State private var apiSettings: APISettings
     private let bookmarkManager: BookmarkManager
@@ -20,9 +20,9 @@ struct NotionSyncMenuBarApp: App {
     var body: some Scene {
         MenuBarExtra {
             if engine.isRunning {
-                Text("NotionSync: Running (\(engine.activeTargetCount) dirs)")
+                Text("Toukan: Running (\(engine.activeTargetCount) dirs)")
             } else {
-                Text("NotionSync: Stopped")
+                Text("Toukan: Stopped")
             }
 
             if let file = engine.lastSyncedFile, let date = engine.lastSyncedDate {

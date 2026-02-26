@@ -278,7 +278,7 @@ struct NotionAPIClient: Sendable {
     private let session: URLSession
 
     private static let logger = Logger(
-        subsystem: "com.bon.NotionSyncMenuBar",
+        subsystem: "com.bon.Toukan",
         category: "NotionAPI"
     )
 

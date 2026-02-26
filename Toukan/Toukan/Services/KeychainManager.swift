@@ -30,13 +30,13 @@ extension KeychainError: LocalizedError {
 /// A lightweight, stateless wrapper around the Security framework Keychain APIs.
 ///
 /// All credentials are stored in the macOS Keychain under the service name
-/// `"com.bon.NotionSyncMenuBar"`. Keys used by NotionSync:
+/// `"com.bon.Toukan"`. Keys used by Toukan:
 /// - `"notionToken"` — Notion Integration Token
 struct KeychainManager: Sendable {
 
     // MARK: Constants
 
-    private static let serviceName = "com.bon.NotionSyncMenuBar"
+    private static let serviceName = "com.bon.Toukan"
 
     // MARK: Public API
 

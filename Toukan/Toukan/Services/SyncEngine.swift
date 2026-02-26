@@ -44,7 +44,7 @@ final class SyncEngine {
     /// Security-scoped resource URLs that have been started and must be stopped on shutdown.
     private var accessedURLs: [URL] = []
 
-    private let logger = Logger(subsystem: "com.bon.NotionSyncMenuBar", category: "SyncEngine")
+    private let logger = Logger(subsystem: "com.bon.Toukan", category: "SyncEngine")
 
     var activeTargetCount: Int {
         bookmarkManager.targets.count

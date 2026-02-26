@@ -20,7 +20,7 @@ final class DirectoryWatcher: @unchecked Sendable {
     // MARK: Private State (all guarded by `queue`)
 
     /// Serial queue that serialises all file-system operations and state mutations.
-    private let queue = DispatchQueue(label: "com.bon.NotionSyncMenuBar.DirectoryWatcher")
+    private let queue = DispatchQueue(label: "com.bon.Toukan.DirectoryWatcher")
 
     /// Active `DispatchSource` keyed by the directory URL being watched.
     private var sources: [URL: DispatchSourceFileSystemObject] = [:]
@@ -31,7 +31,7 @@ final class DirectoryWatcher: @unchecked Sendable {
     /// Caller-supplied callback.
     private let handler: Handler
 
-    private let logger = Logger(subsystem: "com.bon.NotionSyncMenuBar", category: "DirectoryWatcher")
+    private let logger = Logger(subsystem: "com.bon.Toukan", category: "DirectoryWatcher")
 
     // MARK: Lifecycle
 

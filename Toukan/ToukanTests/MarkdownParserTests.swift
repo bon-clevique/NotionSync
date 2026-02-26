@@ -1,5 +1,5 @@
 import XCTest
-@testable import NotionSyncMenuBar
+@testable import Toukan
 
 final class MarkdownParserTests: XCTestCase {
 
