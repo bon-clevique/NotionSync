@@ -10,8 +10,7 @@ struct ToukanApp: App {
     init() {
         let bm = BookmarkManager()
         let api = APISettings()
-        let eng = SyncEngine(bookmarkManager: bm)
-        eng.configure(token: api.token, dataSourceId: api.dataSourceId)
+        let eng = SyncEngine(bookmarkManager: bm, apiSettings: api)
         let lm = LanguageManager()
 
         self.bookmarkManager = bm
@@ -71,7 +70,6 @@ private struct MenuBarContent: View {
             }
         } else {
             Button(strings.menuStart) {
-                engine.configure(token: apiSettings.token, dataSourceId: apiSettings.dataSourceId)
                 engine.start()
             }
             .disabled(apiSettings.token.isEmpty || apiSettings.dataSourceId.isEmpty)
@@ -81,7 +79,7 @@ private struct MenuBarContent: View {
 
         Button(strings.menuSettings) {
             openSettings()
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
         }
         .keyboardShortcut(",", modifiers: .command)
 

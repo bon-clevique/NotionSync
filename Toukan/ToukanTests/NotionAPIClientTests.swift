@@ -279,4 +279,44 @@ final class NotionAPIClientTests: XCTestCase {
         }
     }
 
+    // MARK: - 9. fetchDatabase rejects invalid UUID
+
+    func test_fetchDatabase_invalidUUID_throwsValidationError() async throws {
+        MockURLProtocol.requestHandler = { _ in
+            XCTFail("Request should not be sent for invalid UUID")
+            return (makeResponse(statusCode: 200), Data())
+        }
+
+        do {
+            _ = try await client.fetchDatabase(databaseId: "not-a-uuid")
+            XCTFail("Expected NotionAPIError.validationError to be thrown")
+        } catch let error as NotionAPIError {
+            guard case .validationError(let message) = error else {
+                XCTFail("Expected .validationError, got \(error)")
+                return
+            }
+            XCTAssertTrue(message.contains("not a valid UUID"))
+        }
+    }
+
+    // MARK: - 10. fetchDataSourceName rejects invalid UUID
+
+    func test_fetchDataSourceName_invalidUUID_throwsValidationError() async throws {
+        MockURLProtocol.requestHandler = { _ in
+            XCTFail("Request should not be sent for invalid UUID")
+            return (makeResponse(statusCode: 200), Data())
+        }
+
+        do {
+            _ = try await client.fetchDataSourceName(dataSourceId: "invalid!!!")
+            XCTFail("Expected NotionAPIError.validationError to be thrown")
+        } catch let error as NotionAPIError {
+            guard case .validationError(let message) = error else {
+                XCTFail("Expected .validationError, got \(error)")
+                return
+            }
+            XCTAssertTrue(message.contains("not a valid UUID"))
+        }
+    }
+
 }

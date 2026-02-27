@@ -7,6 +7,14 @@ import os
 /// `DispatchSource.makeFileSystemObjectSource`. Designed for use inside the
 /// App Sandbox; the caller is responsible for starting/stopping
 /// security-scoped resource access on every URL passed to `watch(_:)`.
+///
+/// ## Thread Model
+///
+/// All mutable state (`sources`, `snapshots`) is guarded by a private serial
+/// `DispatchQueue`. Public methods synchronise on this queue, making the class
+/// safe to call from any thread. The ``Handler`` callback is invoked on the
+/// internal queue — callers that need MainActor isolation must dispatch
+/// accordingly (see ``SyncEngine/handleNewFile(_:in:)``).
 final class DirectoryWatcher: @unchecked Sendable {
 
     // MARK: Types

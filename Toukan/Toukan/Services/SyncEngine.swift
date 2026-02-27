@@ -21,16 +21,9 @@ final class SyncEngine {
     private(set) var errorMessage: String?
     private(set) var syncedCount: Int = 0
 
-    // MARK: - Configuration (set via configure() before calling start())
+    // MARK: - Configuration
 
-    private(set) var dataSourceId: String = ""
-    private(set) var notionToken: String = ""
-
-    /// Updates API credentials. Call before `start()`.
-    func configure(token: String, dataSourceId: String) {
-        self.notionToken = token
-        self.dataSourceId = dataSourceId
-    }
+    private let apiSettings: APISettings
 
     // MARK: - Dependencies
 
@@ -52,8 +45,9 @@ final class SyncEngine {
 
     // MARK: - Init
 
-    init(bookmarkManager: BookmarkManager) {
+    init(bookmarkManager: BookmarkManager, apiSettings: APISettings) {
         self.bookmarkManager = bookmarkManager
+        self.apiSettings = apiSettings
     }
 
     // MARK: - Lifecycle
@@ -61,12 +55,12 @@ final class SyncEngine {
     /// Validates configuration, creates the API client and directory watcher, and
     /// begins monitoring all registered sync targets.
     func start() {
-        guard !notionToken.isEmpty else {
+        guard !apiSettings.token.isEmpty else {
             errorMessage = "Notion token is not configured."
-            logger.error("start: notionToken is empty — aborting")
+            logger.error("start: token is empty — aborting")
             return
         }
-        guard !dataSourceId.isEmpty else {
+        guard !apiSettings.dataSourceId.isEmpty else {
             errorMessage = "Notion data source ID is not configured."
             logger.error("start: dataSourceId is empty — aborting")
             return
@@ -74,7 +68,7 @@ final class SyncEngine {
 
         logger.info("start: initialising SyncEngine")
 
-        apiClient = NotionAPIClient(token: notionToken)
+        apiClient = NotionAPIClient(token: apiSettings.token)
 
         // Capture self weakly to satisfy the @Sendable requirement on the handler
         // and to avoid a retain cycle. Dispatch back to MainActor for state access.
@@ -173,10 +167,6 @@ final class SyncEngine {
             logger.debug("processFile: skipping duplicate '\(filename, privacy: .public)'")
             return
         }
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            logger.debug("processFile: file no longer exists '\(filename, privacy: .public)'")
-            return
-        }
         processingFiles.insert(canonicalPath)
         defer { processingFiles.remove(canonicalPath) }
 
@@ -210,7 +200,7 @@ final class SyncEngine {
         let page: NotionPage
         do {
             page = try await client.createPage(
-                dataSourceId: dataSourceId,
+                dataSourceId: apiSettings.dataSourceId,
                 title: title,
                 litNoteId: noteId,
                 blocks: blocks

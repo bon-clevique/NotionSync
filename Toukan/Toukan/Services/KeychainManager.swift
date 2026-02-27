@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import os
 
 // MARK: - KeychainError
 
@@ -37,6 +38,7 @@ struct KeychainManager: Sendable {
     // MARK: Constants
 
     private static let serviceName = "com.clevique.Toukan"
+    private static let logger = Logger(subsystem: "com.clevique.Toukan", category: "Keychain")
 
     // MARK: Public API
 
@@ -90,6 +92,9 @@ struct KeychainManager: Sendable {
         let status = SecItemCopyMatching(query as CFDictionary, &result)
 
         guard status == errSecSuccess, let data = result as? Data else {
+            if status != errSecItemNotFound {
+                logger.warning("load: unexpected Keychain status \(status, privacy: .public) for key '\(key, privacy: .public)'")
+            }
             return nil
         }
 
@@ -104,8 +109,9 @@ struct KeychainManager: Sendable {
     static func delete(key: String) {
         let query = baseQuery(for: key)
         let status = SecItemDelete(query as CFDictionary)
-        // errSecItemNotFound is acceptable — nothing to delete.
-        _ = status
+        if status != errSecSuccess && status != errSecItemNotFound {
+            logger.warning("delete: unexpected Keychain status \(status, privacy: .public) for key '\(key, privacy: .public)'")
+        }
     }
 
     // MARK: Private Helpers
@@ -116,6 +122,7 @@ struct KeychainManager: Sendable {
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: serviceName,
             kSecAttrAccount: key,
+            kSecAttrAccessible: kSecAttrAccessibleWhenUnlocked,
         ]
     }
 }

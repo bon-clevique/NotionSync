@@ -24,10 +24,15 @@ final class APISettings {
     var token: String = "" {
         didSet {
             guard isLoaded else { return }
+            keychainError = nil
             if token.isEmpty {
                 KeychainManager.delete(key: Self.tokenKey)
             } else {
-                try? KeychainManager.save(key: Self.tokenKey, value: token)
+                do {
+                    try KeychainManager.save(key: Self.tokenKey, value: token)
+                } catch {
+                    keychainError = error.localizedDescription
+                }
             }
         }
     }
@@ -40,6 +45,7 @@ final class APISettings {
     }
 
     private(set) var isLoaded = false
+    private(set) var keychainError: String?
 
     // MARK: Init
 
@@ -54,6 +60,28 @@ final class APISettings {
     func clearCredentials() {
         token = ""
         dataSourceId = ""
+    }
+
+    /// Resolves a Notion share link to a data source ID.
+    /// - Parameter input: A share link URL or raw database ID string.
+    /// - Returns: The display name of the resolved data source.
+    func resolveShareLink(input: String) async throws -> String {
+        guard let databaseId = NotionURLParser.extractDatabaseId(from: input) else {
+            throw NotionAPIError.validationError(message: "Could not extract database ID from input")
+        }
+        let db = try await NotionAPIClient(token: token).fetchDatabase(databaseId: databaseId)
+        guard let ds = db.dataSources.first else {
+            throw NotionAPIError.notFound
+        }
+        dataSourceId = ds.id
+        return ds.name ?? db.databaseName
+    }
+
+    /// Tests the connection by fetching the data source name.
+    /// - Returns: The data source name on success.
+    func testConnection() async throws -> String {
+        let id = dataSourceId.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try await NotionAPIClient(token: token).fetchDataSourceName(dataSourceId: id)
     }
 
     // MARK: - Migration
@@ -100,7 +128,7 @@ struct SettingsView: View {
         }
         .frame(width: 480, height: 520)
         .onAppear {
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
         }
     }
 }
@@ -242,6 +270,12 @@ struct APISettingsView: View {
                         resolveStatus = .idle
                     }
 
+                if let error = apiSettings.keychainError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
                 TextField("Data Source ID", text: $apiSettings.dataSourceId)
                     .onChange(of: apiSettings.dataSourceId) { _, _ in
                         connectionStatus = .untested
@@ -377,72 +411,23 @@ struct APISettingsView: View {
         resolveStatus = .resolving
         let input = shareLink.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard let databaseId = Self.extractDatabaseId(from: input) else {
+        guard NotionURLParser.extractDatabaseId(from: input) != nil else {
             resolveStatus = .failed(strings.resolveCannotExtract)
             return
         }
 
-        let token = apiSettings.token
         Task { @MainActor in
             do {
-                let db = try await NotionAPIClient(token: token).fetchDatabase(databaseId: databaseId)
-                guard let ds = db.dataSources.first else {
-                    resolveStatus = .failed(strings.resolveNoDataSource)
-                    return
-                }
-                apiSettings.dataSourceId = ds.id
-                resolveStatus = .resolved(name: ds.name ?? db.databaseName)
+                let name = try await apiSettings.resolveShareLink(input: input)
+                resolveStatus = .resolved(name: name)
             } catch {
                 resolveStatus = .failed(error.localizedDescription)
             }
         }
     }
 
-    /// Extracts a Notion database ID (UUID) from a share link or raw ID string.
-    private static func extractDatabaseId(from input: String) -> String? {
-        // Already a UUID with dashes
-        if input.range(of: #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"#,
-                       options: [.regularExpression, .caseInsensitive]) != nil {
-            return input.lowercased()
-        }
-
-        // 32 hex chars without dashes
-        if input.range(of: #"^[0-9a-f]{32}$"#, options: [.regularExpression, .caseInsensitive]) != nil {
-            return formatAsUUID(input.lowercased())
-        }
-
-        // Notion share URL — extract 32 hex chars from last path component
-        guard let url = URL(string: input),
-              let host = url.host,
-              host.contains("notion") else {
-            return nil
-        }
-        let lastComponent = url.lastPathComponent
-        guard let match = lastComponent.range(
-            of: #"[0-9a-f]{32}"#,
-            options: [.regularExpression, .caseInsensitive, .backwards]
-        ) else {
-            return nil
-        }
-        return formatAsUUID(String(lastComponent[match]).lowercased())
-    }
-
-    private static func formatAsUUID(_ hex: String) -> String {
-        let h = Array(hex)
-        return [
-            String(h[0..<8]),
-            String(h[8..<12]),
-            String(h[12..<16]),
-            String(h[16..<20]),
-            String(h[20..<32]),
-        ].joined(separator: "-")
-    }
-
     private func runConnectionTest() {
-        let token = apiSettings.token
-        let dataSourceId = apiSettings.dataSourceId.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !dataSourceId.isEmpty else {
+        guard !apiSettings.dataSourceId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             connectionStatus = .failed(strings.enterDataSourceIdFirst)
             return
         }
@@ -450,8 +435,7 @@ struct APISettingsView: View {
         connectionStatus = .testing
         Task {
             do {
-                let client = NotionAPIClient(token: token)
-                let name = try await client.fetchDataSourceName(dataSourceId: dataSourceId)
+                let name = try await apiSettings.testConnection()
                 connectionStatus = .success(databaseName: name)
             } catch {
                 connectionStatus = .failed(error.localizedDescription)

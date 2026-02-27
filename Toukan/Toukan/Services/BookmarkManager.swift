@@ -148,10 +148,9 @@ struct SyncTarget: Codable, Identifiable, Sendable {
         let didStart = url.startAccessingSecurityScopedResource()
         if !didStart {
             logger.warning("startAccessingSecurityScopedResource returned false for \(url.path, privacy: .public)")
-        } else {
-            logger.debug("Started accessing security-scoped resource: \(url.path, privacy: .public)")
+            return nil
         }
-
+        logger.debug("Started accessing security-scoped resource: \(url.path, privacy: .public)")
         return url
     }
 

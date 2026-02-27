@@ -70,11 +70,8 @@ struct NotionBlock: Encodable, Sendable {
         }
     }
 
-    // Backing storage — only one will be non-nil based on `type`.
-    private let heading1Content: BlockContent?
-    private let heading2Content: BlockContent?
-    private let heading3Content: BlockContent?
-    private let paragraphContent: BlockContent?
+    // Single non-optional backing store for all block types.
+    private let content: BlockContent
 
     // MARK: Encoding
 
@@ -94,30 +91,21 @@ struct NotionBlock: Encodable, Sendable {
 
         switch type {
         case .heading1:
-            try container.encodeIfPresent(heading1Content, forKey: .heading1)
+            try container.encode(content, forKey: .heading1)
         case .heading2:
-            try container.encodeIfPresent(heading2Content, forKey: .heading2)
+            try container.encode(content, forKey: .heading2)
         case .heading3:
-            try container.encodeIfPresent(heading3Content, forKey: .heading3)
+            try container.encode(content, forKey: .heading3)
         case .paragraph:
-            try container.encodeIfPresent(paragraphContent, forKey: .paragraph)
+            try container.encode(content, forKey: .paragraph)
         }
     }
 
     // MARK: Private init
 
-    private init(
-        type: BlockType,
-        heading1Content: BlockContent? = nil,
-        heading2Content: BlockContent? = nil,
-        heading3Content: BlockContent? = nil,
-        paragraphContent: BlockContent? = nil
-    ) {
+    private init(type: BlockType, content: BlockContent) {
         self.type = type
-        self.heading1Content = heading1Content
-        self.heading2Content = heading2Content
-        self.heading3Content = heading3Content
-        self.paragraphContent = paragraphContent
+        self.content = content
     }
 
     // MARK: Factory methods
@@ -127,31 +115,19 @@ struct NotionBlock: Encodable, Sendable {
     }
 
     static func heading1(_ text: String) -> NotionBlock {
-        NotionBlock(
-            type: .heading1,
-            heading1Content: BlockContent(richText: richText(for: text))
-        )
+        NotionBlock(type: .heading1, content: BlockContent(richText: richText(for: text)))
     }
 
     static func heading2(_ text: String) -> NotionBlock {
-        NotionBlock(
-            type: .heading2,
-            heading2Content: BlockContent(richText: richText(for: text))
-        )
+        NotionBlock(type: .heading2, content: BlockContent(richText: richText(for: text)))
     }
 
     static func heading3(_ text: String) -> NotionBlock {
-        NotionBlock(
-            type: .heading3,
-            heading3Content: BlockContent(richText: richText(for: text))
-        )
+        NotionBlock(type: .heading3, content: BlockContent(richText: richText(for: text)))
     }
 
     static func paragraph(_ text: String) -> NotionBlock {
-        NotionBlock(
-            type: .paragraph,
-            paragraphContent: BlockContent(richText: richText(for: text))
-        )
+        NotionBlock(type: .paragraph, content: BlockContent(richText: richText(for: text)))
     }
 }
 
@@ -360,6 +336,7 @@ struct NotionAPIClient: Sendable {
     /// - Parameter databaseId: The database ID extracted from a Notion share link.
     /// - Returns: The `DatabaseResponse` containing data sources.
     func fetchDatabase(databaseId: String) async throws -> DatabaseResponse {
+        try Self.validateUUID(databaseId, label: "database ID")
         let url = Self.baseURL.appendingPathComponent("databases/\(databaseId)")
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -383,6 +360,7 @@ struct NotionAPIClient: Sendable {
     /// - Parameter dataSourceId: The data source ID to look up.
     /// - Returns: The data source name (title).
     func fetchDataSourceName(dataSourceId: String) async throws -> String {
+        try Self.validateUUID(dataSourceId, label: "data source ID")
         let url = Self.baseURL.appendingPathComponent("data_sources/\(dataSourceId)")
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -404,6 +382,14 @@ struct NotionAPIClient: Sendable {
     }
 
     // MARK: - Private helpers
+
+    /// Validates that the given string is a well-formed UUID (8-4-4-4-12 hex).
+    private static func validateUUID(_ value: String, label: String) throws {
+        let pattern = #"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"#
+        guard value.range(of: pattern, options: .regularExpression) != nil else {
+            throw NotionAPIError.validationError(message: "Invalid \(label): '\(value)' is not a valid UUID")
+        }
+    }
 
     /// Attaches Authorization and Notion-Version headers.
     private func applyHeaders(to request: inout URLRequest) {

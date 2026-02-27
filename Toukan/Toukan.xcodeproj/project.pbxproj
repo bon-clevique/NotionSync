@@ -20,6 +20,9 @@
 		AA0001010000000000000011 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000015 /* KeychainManager.swift */; };
 		AA0001010000000000000012 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000016 /* SettingsView.swift */; };
 		AA0001010000000000000013 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000017 /* Localization.swift */; };
+		AA0001010000000000000014 /* NotionURLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000018 /* NotionURLParser.swift */; };
+		AA0001010000000000000015 /* NotionURLParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000019 /* NotionURLParserTests.swift */; };
+		AA0001010000000000000016 /* SyncTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000020 /* SyncTargetTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,6 +51,9 @@
 		BB0001010000000000000015 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		BB0001010000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		BB0001010000000000000017 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		BB0001010000000000000018 /* NotionURLParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotionURLParser.swift; sourceTree = "<group>"; };
+		BB0001010000000000000019 /* NotionURLParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotionURLParserTests.swift; sourceTree = "<group>"; };
+		BB0001010000000000000020 /* SyncTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTargetTests.swift; sourceTree = "<group>"; };
 		BB0001010000000000000010 /* Toukan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Toukan.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0001010000000000000011 /* ToukanTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ToukanTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -127,6 +133,7 @@
 				BB0001010000000000000013 /* DirectoryWatcher.swift */,
 				BB0001010000000000000014 /* SyncEngine.swift */,
 				BB0001010000000000000015 /* KeychainManager.swift */,
+				BB0001010000000000000018 /* NotionURLParser.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -136,6 +143,8 @@
 			children = (
 				BB0001010000000000000008 /* MarkdownParserTests.swift */,
 				BB0001010000000000000009 /* NotionAPIClientTests.swift */,
+				BB0001010000000000000019 /* NotionURLParserTests.swift */,
+				BB0001010000000000000020 /* SyncTargetTests.swift */,
 			);
 			path = ToukanTests;
 			sourceTree = "<group>";
@@ -241,6 +250,7 @@
 				AA0001010000000000000011 /* KeychainManager.swift in Sources */,
 				AA0001010000000000000012 /* SettingsView.swift in Sources */,
 				AA0001010000000000000013 /* Localization.swift in Sources */,
+				AA0001010000000000000014 /* NotionURLParser.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -250,6 +260,8 @@
 			files = (
 				AA0001010000000000000006 /* MarkdownParserTests.swift in Sources */,
 				AA0001010000000000000007 /* NotionAPIClientTests.swift in Sources */,
+				AA0001010000000000000015 /* NotionURLParserTests.swift in Sources */,
+				AA0001010000000000000016 /* SyncTargetTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -82,6 +82,7 @@ struct Strings: Sendable {
     var languageLabel: String { ja ? "言語" : "Language" }
     var aboutVersion: String { ja ? "バージョン" : "Version" }
     var aboutCopyright: String { "© 2026 Clevique" }
+    var keychainSaveError: String { ja ? "キーチェーン保存エラー" : "Keychain save error" }
 
     // MARK: API Settings
 
