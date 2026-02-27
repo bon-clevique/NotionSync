@@ -95,6 +95,9 @@ struct Strings: Sendable {
     }
     var resolve: String { ja ? "取得" : "Resolve" }
     var testConnection: String { ja ? "接続テスト" : "Test Connection" }
+    var enterDataSourceIdFirst: String {
+        ja ? "先に Data Source ID を入力してください" : "Enter Data Source ID first."
+    }
     var deleteCredentials: String { ja ? "資格情報を削除" : "Delete Credentials" }
     var deleteCredentialsConfirm: String {
         ja ? "保存済みのAPIトークンとData Source IDを削除しますか？"

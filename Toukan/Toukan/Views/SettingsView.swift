@@ -268,6 +268,7 @@ struct APISettingsView: View {
                     }
                     .disabled(
                         apiSettings.token.isEmpty ||
+                        apiSettings.dataSourceId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                         connectionStatus == .testing
                     )
 
@@ -414,20 +415,20 @@ struct APISettingsView: View {
     }
 
     private func runConnectionTest() {
-        connectionStatus = .testing
         let token = apiSettings.token
         let dataSourceId = apiSettings.dataSourceId.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !dataSourceId.isEmpty else {
+            connectionStatus = .failed(strings.enterDataSourceIdFirst)
+            return
+        }
+
+        connectionStatus = .testing
         Task {
             do {
                 let client = NotionAPIClient(token: token)
-                _ = try await client.testConnection()
-
-                if !dataSourceId.isEmpty {
-                    let name = try await client.fetchDataSourceName(dataSourceId: dataSourceId)
-                    connectionStatus = .success(databaseName: name)
-                } else {
-                    connectionStatus = .success(databaseName: nil)
-                }
+                let name = try await client.fetchDataSourceName(dataSourceId: dataSourceId)
+                connectionStatus = .success(databaseName: name)
             } catch {
                 connectionStatus = .failed(error.localizedDescription)
             }

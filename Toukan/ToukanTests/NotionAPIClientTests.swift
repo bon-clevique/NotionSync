@@ -279,46 +279,4 @@ final class NotionAPIClientTests: XCTestCase {
         }
     }
 
-    // MARK: - 9. testConnection success
-
-    func test_testConnection_success() async throws {
-        let bodyData = #"{"id":"user-1","type":"person"}"#.data(using: .utf8)!
-
-        MockURLProtocol.requestHandler = { _ in
-            return (
-                makeResponse(
-                    url: URL(string: "https://api.notion.com/v1/users/me")!,
-                    statusCode: 200
-                ),
-                bodyData
-            )
-        }
-
-        let result = try await client.testConnection()
-        XCTAssertTrue(result)
-    }
-
-    // MARK: - 10. testConnection unauthorized throws
-
-    func test_testConnection_unauthorized_throws() async throws {
-        MockURLProtocol.requestHandler = { _ in
-            return (
-                makeResponse(
-                    url: URL(string: "https://api.notion.com/v1/users/me")!,
-                    statusCode: 401
-                ),
-                Data()
-            )
-        }
-
-        do {
-            _ = try await client.testConnection()
-            XCTFail("Expected NotionAPIError.unauthorized to be thrown")
-        } catch let error as NotionAPIError {
-            guard case .unauthorized = error else {
-                XCTFail("Expected .unauthorized, got \(error)")
-                return
-            }
-        }
-    }
 }

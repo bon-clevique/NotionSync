@@ -355,21 +355,6 @@ struct NotionAPIClient: Sendable {
         }
     }
 
-    /// Tests the connection by calling `GET /users/me`.
-    /// - Returns: `true` if the token is valid and the request succeeds.
-    func testConnection() async throws -> Bool {
-        let url = Self.baseURL.appendingPathComponent("users/me")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        applyHeaders(to: &request)
-
-        Self.logger.info("testConnection: GET \(url.absoluteString, privacy: .public)")
-
-        _ = try await performRequest(request)
-        Self.logger.info("testConnection: success")
-        return true
-    }
-
     /// Retrieves database info including data sources by calling `GET /databases/{database_id}`.
     /// Used to resolve a share link (which contains a database_id) to a data_source_id.
     /// - Parameter databaseId: The database ID extracted from a Notion share link.
