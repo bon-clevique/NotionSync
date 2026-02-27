@@ -118,6 +118,12 @@ struct GeneralSettingsView: View {
         SMAppService.mainApp.status == .enabled
     }
 
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
+    }
+
     var body: some View {
         Form {
             Section {
@@ -139,6 +145,24 @@ struct GeneralSettingsView: View {
                         Text(lang.displayName).tag(lang)
                     }
                 }
+            }
+
+            Section {
+                VStack(spacing: 8) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 64, height: 64)
+                    Text("Toukan")
+                        .font(.headline)
+                    Text("\(strings.aboutVersion) \(appVersion)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(strings.aboutCopyright)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
             }
         }
         .formStyle(.grouped)

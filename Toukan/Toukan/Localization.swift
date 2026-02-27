@@ -80,6 +80,8 @@ struct Strings: Sendable {
         ja ? "設定に失敗しました: \(detail)" : "Failed to update setting: \(detail)"
     }
     var languageLabel: String { ja ? "言語" : "Language" }
+    var aboutVersion: String { ja ? "バージョン" : "Version" }
+    var aboutCopyright: String { "© 2026 Clevique" }
 
     // MARK: API Settings
 
