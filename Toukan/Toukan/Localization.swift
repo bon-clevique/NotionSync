@@ -178,4 +178,67 @@ struct Strings: Sendable {
     func createFailed(error: String) -> String {
         ja ? "作成失敗: \(error)" : "Creation failed: \(error)"
     }
+
+    // MARK: Log
+
+    var tabLog: String { ja ? "ログ" : "Log" }
+    var logEmpty: String { ja ? "ログはありません" : "No log entries" }
+    var logClear: String { ja ? "クリア" : "Clear" }
+
+    // MARK: Sync Engine Messages
+
+    var syncStarting: String { ja ? "同期エンジンを開始中…" : "Starting sync engine…" }
+    func syncStarted(count: Int) -> String {
+        ja ? "同期開始 — \(count)ターゲットを監視中" : "Sync started — watching \(count) target(s)"
+    }
+    var syncStopping: String { ja ? "同期エンジンを停止中…" : "Stopping sync engine…" }
+    var syncStopped: String { ja ? "同期エンジン停止" : "Sync engine stopped" }
+    var noTargetsConfigured: String {
+        ja ? "同期先が設定されていません" : "No sync targets configured"
+    }
+    var allTargetsFailed: String {
+        ja ? "すべての同期先へのアクセスに失敗しました" : "Failed to access all sync targets"
+    }
+    func someTargetsFailed(count: Int) -> String {
+        ja ? "\(count)ターゲットにアクセスできません" : "\(count) target(s) could not be accessed"
+    }
+    func targetAccessFailed(name: String) -> String {
+        ja ? "アクセスできません: \(name)" : "Could not access: \(name)"
+    }
+    func targetWatchFailed(name: String) -> String {
+        ja ? "監視できません: \(name)" : "Could not watch: \(name)"
+    }
+    func targetWatching(path: String) -> String {
+        ja ? "監視中: \(path)" : "Watching: \(path)"
+    }
+    var tokenNotConfigured: String {
+        ja ? "Notionトークンが設定されていません" : "Notion token is not configured"
+    }
+    var dataSourceIdNotConfigured: String {
+        ja ? "Data Source IDが設定されていません" : "Data Source ID is not configured"
+    }
+    var apiClientNotReady: String {
+        ja ? "APIクライアントが初期化されていません" : "API client is not initialised"
+    }
+    func processingFile(name: String) -> String {
+        ja ? "処理中: \(name)" : "Processing: \(name)"
+    }
+    func fileReadFailed(name: String) -> String {
+        ja ? "読み込み失敗: \(name)" : "Failed to read: \(name)"
+    }
+    func uploadSuccess(name: String) -> String {
+        ja ? "アップロード完了: \(name)" : "Uploaded: \(name)"
+    }
+    func uploadFailed(name: String) -> String {
+        ja ? "アップロード失敗: \(name)" : "Upload failed: \(name)"
+    }
+    func archiveSuccess(name: String) -> String {
+        ja ? "アーカイブ完了: \(name)" : "Archived: \(name)"
+    }
+    func archiveFailed(name: String) -> String {
+        ja ? "アーカイブ失敗: \(name)" : "Archive failed: \(name)"
+    }
+    func syncComplete(name: String, count: Int) -> String {
+        ja ? "同期完了: \(name)（合計: \(count)件）" : "Synced: \(name) (total: \(count))"
+    }
 }

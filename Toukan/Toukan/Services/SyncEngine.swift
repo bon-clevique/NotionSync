@@ -27,7 +27,9 @@ final class SyncEngine {
 
     // MARK: - Dependencies
 
-    let bookmarkManager: BookmarkManager
+    private let bookmarkManager: BookmarkManager
+    private let logStore: SyncLogStore
+    private let languageManager: LanguageManager
 
     // MARK: - Private State
 
@@ -40,14 +42,29 @@ final class SyncEngine {
     private let logger = Logger(subsystem: "com.clevique.Toukan", category: "SyncEngine")
 
     var activeTargetCount: Int {
-        bookmarkManager.targets.count
+        accessedURLs.count
     }
+
+    private var strings: Strings { languageManager.strings }
 
     // MARK: - Init
 
-    init(bookmarkManager: BookmarkManager, apiSettings: APISettings) {
+    init(bookmarkManager: BookmarkManager, apiSettings: APISettings, logStore: SyncLogStore, languageManager: LanguageManager) {
         self.bookmarkManager = bookmarkManager
         self.apiSettings = apiSettings
+        self.logStore = logStore
+        self.languageManager = languageManager
+    }
+
+    // MARK: - Logging
+
+    private func log(_ level: SyncLogLevel, _ message: String) {
+        logStore.append(SyncLogEntry(level: level, message: message))
+        switch level {
+        case .info: logger.info("\(message, privacy: .public)")
+        case .warning: logger.warning("\(message, privacy: .public)")
+        case .error: logger.error("\(message, privacy: .public)")
+        }
     }
 
     // MARK: - Lifecycle
@@ -56,17 +73,17 @@ final class SyncEngine {
     /// begins monitoring all registered sync targets.
     func start() {
         guard !apiSettings.token.isEmpty else {
-            errorMessage = "Notion token is not configured."
-            logger.error("start: token is empty — aborting")
+            errorMessage = strings.tokenNotConfigured
+            log(.error, strings.tokenNotConfigured)
             return
         }
         guard !apiSettings.dataSourceId.isEmpty else {
-            errorMessage = "Notion data source ID is not configured."
-            logger.error("start: dataSourceId is empty — aborting")
+            errorMessage = strings.dataSourceIdNotConfigured
+            log(.error, strings.dataSourceIdNotConfigured)
             return
         }
 
-        logger.info("start: initialising SyncEngine")
+        log(.info, strings.syncStarting)
 
         apiClient = NotionAPIClient(token: apiSettings.token)
 
@@ -82,29 +99,48 @@ final class SyncEngine {
         var startedURLs: [URL] = []
         for target in bookmarkManager.targets {
             guard let url = bookmarkManager.startAccessing(target) else {
-                logger.warning("start: could not start accessing target '\(target.displayName, privacy: .public)'")
+                log(.warning, strings.targetAccessFailed(name: target.displayName))
                 continue
             }
             do {
                 try newWatcher.watch(url)
                 newWatcher.scanExistingFiles(in: url)
                 startedURLs.append(url)
-                logger.info("start: watching '\(url.path, privacy: .public)'")
+                log(.info, strings.targetWatching(path: url.path))
             } catch {
-                logger.error("start: failed to watch '\(url.path, privacy: .public)' — \(error.localizedDescription, privacy: .public)")
+                log(.error, strings.targetWatchFailed(name: url.path))
                 bookmarkManager.stopAccessing(url)
             }
         }
 
         accessedURLs = startedURLs
-        isRunning = true
-        errorMessage = nil
-        logger.info("start: SyncEngine running — \(startedURLs.count, privacy: .public) target(s) watched")
+
+        if startedURLs.isEmpty {
+            if bookmarkManager.targets.isEmpty {
+                log(.warning, strings.noTargetsConfigured)
+                errorMessage = strings.noTargetsConfigured
+            } else {
+                log(.error, strings.allTargetsFailed)
+                errorMessage = strings.allTargetsFailed
+            }
+            isRunning = false
+        } else {
+            let failedCount = bookmarkManager.targets.count - startedURLs.count
+            if failedCount > 0 {
+                let msg = strings.someTargetsFailed(count: failedCount)
+                log(.warning, msg)
+                errorMessage = msg
+            } else {
+                errorMessage = nil
+            }
+            isRunning = true
+            log(.info, strings.syncStarted(count: startedURLs.count))
+        }
     }
 
     /// Stops all directory watchers and relinquishes security-scoped resource access.
     func stop() {
-        logger.info("stop: stopping SyncEngine")
+        log(.info, strings.syncStopping)
 
         processingFiles.removeAll()
 
@@ -118,7 +154,7 @@ final class SyncEngine {
         accessedURLs = []
 
         isRunning = false
-        logger.info("stop: SyncEngine stopped")
+        log(.info, strings.syncStopped)
     }
 
     // MARK: - File Handling
@@ -136,7 +172,7 @@ final class SyncEngine {
                     == directoryURL.standardizedFileURL
             }
             if target == nil {
-                self.logger.warning("handleNewFile: no matching target for '\(directoryURL.path, privacy: .public)' — using default archive dir")
+                self.log(.warning, "handleNewFile: no matching target for '\(directoryURL.path)' — using default archive dir")
             }
 
             await processFile(
@@ -170,15 +206,15 @@ final class SyncEngine {
         processingFiles.insert(canonicalPath)
         defer { processingFiles.remove(canonicalPath) }
 
-        logger.info("processFile: begin '\(filename, privacy: .public)'")
+        log(.info, strings.processingFile(name: filename))
 
         // 1. Read file content
         let content: String
         do {
             content = try String(contentsOf: fileURL, encoding: .utf8)
         } catch {
-            let message = "Failed to read '\(filename)': \(error.localizedDescription)"
-            logger.error("processFile: \(message, privacy: .public)")
+            let message = strings.fileReadFailed(name: filename)
+            log(.error, message)
             errorMessage = message
             return
         }
@@ -191,24 +227,23 @@ final class SyncEngine {
 
         // 4. Upload to Notion
         guard let client = apiClient else {
-            let message = "API client is not initialised — call start() first."
-            logger.error("processFile: \(message, privacy: .public)")
+            let message = strings.apiClientNotReady
+            log(.error, message)
             errorMessage = message
             return
         }
 
-        let page: NotionPage
         do {
-            page = try await client.createPage(
+            _ = try await client.createPage(
                 dataSourceId: apiSettings.dataSourceId,
                 title: title,
                 litNoteId: noteId,
                 blocks: blocks
             )
-            logger.info("processFile: uploaded '\(filename, privacy: .public)' → Notion page id=\(page.id, privacy: .public)")
+            log(.info, strings.uploadSuccess(name: filename))
         } catch {
-            let message = "Upload failed for '\(filename)': \(error.localizedDescription)"
-            logger.error("processFile: \(message, privacy: .public)")
+            let message = strings.uploadFailed(name: filename)
+            log(.error, message)
             errorMessage = message
             // Do not move the file — leave it in place for retry
             return
@@ -225,8 +260,8 @@ final class SyncEngine {
                 attributes: nil
             )
         } catch {
-            let message = "Could not create archived/ directory for '\(filename)': \(error.localizedDescription)"
-            logger.error("processFile: \(message, privacy: .public)")
+            let message = strings.archiveFailed(name: filename)
+            log(.error, message)
             errorMessage = message
             return
         }
@@ -238,10 +273,10 @@ final class SyncEngine {
                 try FileManager.default.removeItem(at: destination)
             }
             try FileManager.default.moveItem(at: fileURL, to: destination)
-            logger.info("processFile: archived '\(filename, privacy: .public)' → '\(destination.path, privacy: .public)'")
+            log(.info, strings.archiveSuccess(name: filename))
         } catch {
-            let message = "Failed to archive '\(filename)': \(error.localizedDescription)"
-            logger.error("processFile: \(message, privacy: .public)")
+            let message = strings.archiveFailed(name: filename)
+            log(.error, message)
             errorMessage = message
             return
         }
@@ -251,6 +286,6 @@ final class SyncEngine {
         lastSyncedDate = Date()
         syncedCount += 1
         errorMessage = nil
-        logger.info("processFile: done '\(filename, privacy: .public)' (total synced: \(self.syncedCount, privacy: .public))")
+        log(.info, strings.syncComplete(name: filename, count: syncedCount))
     }
 }

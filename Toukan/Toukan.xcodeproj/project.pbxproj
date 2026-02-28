@@ -23,6 +23,8 @@
 		AA0001010000000000000014 /* NotionURLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000018 /* NotionURLParser.swift */; };
 		AA0001010000000000000015 /* NotionURLParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000019 /* NotionURLParserTests.swift */; };
 		AA0001010000000000000016 /* SyncTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000020 /* SyncTargetTests.swift */; };
+		AA0001010000000000000017 /* SyncLogEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000021 /* SyncLogEntry.swift */; };
+		AA0001010000000000000018 /* SyncLogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0001010000000000000022 /* SyncLogStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,6 +56,8 @@
 		BB0001010000000000000018 /* NotionURLParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotionURLParser.swift; sourceTree = "<group>"; };
 		BB0001010000000000000019 /* NotionURLParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotionURLParserTests.swift; sourceTree = "<group>"; };
 		BB0001010000000000000020 /* SyncTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTargetTests.swift; sourceTree = "<group>"; };
+		BB0001010000000000000021 /* SyncLogEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncLogEntry.swift; sourceTree = "<group>"; };
+		BB0001010000000000000022 /* SyncLogStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncLogStoreTests.swift; sourceTree = "<group>"; };
 		BB0001010000000000000010 /* Toukan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Toukan.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB0001010000000000000011 /* ToukanTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ToukanTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -120,6 +124,7 @@
 		DD0001010000000000000007 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				BB0001010000000000000021 /* SyncLogEntry.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -145,6 +150,7 @@
 				BB0001010000000000000009 /* NotionAPIClientTests.swift */,
 				BB0001010000000000000019 /* NotionURLParserTests.swift */,
 				BB0001010000000000000020 /* SyncTargetTests.swift */,
+				BB0001010000000000000022 /* SyncLogStoreTests.swift */,
 			);
 			path = ToukanTests;
 			sourceTree = "<group>";
@@ -251,6 +257,7 @@
 				AA0001010000000000000012 /* SettingsView.swift in Sources */,
 				AA0001010000000000000013 /* Localization.swift in Sources */,
 				AA0001010000000000000014 /* NotionURLParser.swift in Sources */,
+				AA0001010000000000000017 /* SyncLogEntry.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -262,6 +269,7 @@
 				AA0001010000000000000007 /* NotionAPIClientTests.swift in Sources */,
 				AA0001010000000000000015 /* NotionURLParserTests.swift in Sources */,
 				AA0001010000000000000016 /* SyncTargetTests.swift in Sources */,
+				AA0001010000000000000018 /* SyncLogStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -334,7 +342,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = V9LK8PKJ37;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -359,7 +367,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = V9LK8PKJ37;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -382,7 +390,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = V9LK8PKJ37;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
@@ -400,7 +408,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = V9LK8PKJ37;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
