@@ -242,10 +242,9 @@ final class SyncEngine {
             )
             log(.info, strings.uploadSuccess(name: filename))
         } catch {
-            let message = strings.uploadFailed(name: filename)
-            log(.error, message)
-            errorMessage = message
-            // Do not move the file — leave it in place for retry
+            let detail = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            log(.error, strings.uploadFailedDetail(name: filename, detail: detail))
+            errorMessage = strings.uploadFailed(name: filename)
             return
         }
 

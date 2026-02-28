@@ -6,6 +6,7 @@ import XCTest
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
     nonisolated(unsafe) static var lastRequestBody: Data?
+    nonisolated(unsafe) static var capturedRequests: [(url: URL, method: String, body: Data?)] = []
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -26,6 +27,8 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
             stream.close()
             Self.lastRequestBody = data
         }
+
+        Self.capturedRequests.append((url: request.url!, method: request.httpMethod ?? "GET", body: Self.lastRequestBody))
 
         guard let handler = Self.requestHandler else {
             client?.urlProtocolDidFinishLoading(self)
@@ -79,6 +82,7 @@ final class NotionAPIClientTests: XCTestCase {
     override func tearDown() {
         MockURLProtocol.requestHandler = nil
         MockURLProtocol.lastRequestBody = nil
+        MockURLProtocol.capturedRequests = []
         client = nil
         session = nil
         super.tearDown()
@@ -316,6 +320,143 @@ final class NotionAPIClientTests: XCTestCase {
                 return
             }
             XCTAssertTrue(message.contains("not a valid UUID"))
+        }
+    }
+
+    // MARK: - Chunking helpers
+
+    private func makeBlocks(_ count: Int) -> [NotionBlock] {
+        (0..<count).map { .paragraph("Block \($0)") }
+    }
+
+    // MARK: - 11. Under 100 blocks: no append call
+
+    func test_createPage_under100Blocks_doesNotCallAppend() async throws {
+        MockURLProtocol.requestHandler = { _ in
+            return (makeResponse(statusCode: 200), successPageJSON)
+        }
+
+        _ = try await client.createPage(
+            dataSourceId: "ds-123",
+            title: "Test",
+            litNoteId: nil,
+            blocks: makeBlocks(50)
+        )
+
+        XCTAssertEqual(MockURLProtocol.capturedRequests.count, 1)
+        XCTAssertEqual(MockURLProtocol.capturedRequests[0].method, "POST")
+    }
+
+    // MARK: - 12. Over 100 blocks: appends remaining in chunks
+
+    func test_createPage_over100Blocks_appendsRemainingInChunks() async throws {
+        MockURLProtocol.requestHandler = { _ in
+            return (makeResponse(statusCode: 200), successPageJSON)
+        }
+
+        _ = try await client.createPage(
+            dataSourceId: "ds-123",
+            title: "Test",
+            litNoteId: nil,
+            blocks: makeBlocks(250)
+        )
+
+        XCTAssertEqual(MockURLProtocol.capturedRequests.count, 3)
+
+        // Request 1: POST to /v1/pages with 100 blocks
+        let req1 = MockURLProtocol.capturedRequests[0]
+        XCTAssertEqual(req1.method, "POST")
+        XCTAssertTrue(req1.url.absoluteString.hasSuffix("/v1/pages"))
+        let body1 = try XCTUnwrap(req1.body)
+        let json1 = try XCTUnwrap(try JSONSerialization.jsonObject(with: body1) as? [String: Any])
+        let children1 = try XCTUnwrap(json1["children"] as? [[String: Any]])
+        XCTAssertEqual(children1.count, 100)
+
+        // Request 2: PATCH to /v1/blocks/page-123/children with 100 blocks
+        let req2 = MockURLProtocol.capturedRequests[1]
+        XCTAssertEqual(req2.method, "PATCH")
+        XCTAssertTrue(req2.url.absoluteString.contains("blocks/page-123/children"))
+        let body2 = try XCTUnwrap(req2.body)
+        let json2 = try XCTUnwrap(try JSONSerialization.jsonObject(with: body2) as? [String: Any])
+        let children2 = try XCTUnwrap(json2["children"] as? [[String: Any]])
+        XCTAssertEqual(children2.count, 100)
+
+        // Request 3: PATCH to /v1/blocks/page-123/children with 50 blocks
+        let req3 = MockURLProtocol.capturedRequests[2]
+        XCTAssertEqual(req3.method, "PATCH")
+        XCTAssertTrue(req3.url.absoluteString.contains("blocks/page-123/children"))
+        let body3 = try XCTUnwrap(req3.body)
+        let json3 = try XCTUnwrap(try JSONSerialization.jsonObject(with: body3) as? [String: Any])
+        let children3 = try XCTUnwrap(json3["children"] as? [[String: Any]])
+        XCTAssertEqual(children3.count, 50)
+    }
+
+    // MARK: - 13. Exactly 100 blocks: no append call
+
+    func test_createPage_exactly100Blocks_doesNotCallAppend() async throws {
+        MockURLProtocol.requestHandler = { _ in
+            return (makeResponse(statusCode: 200), successPageJSON)
+        }
+
+        _ = try await client.createPage(
+            dataSourceId: "ds-123",
+            title: "Test",
+            litNoteId: nil,
+            blocks: makeBlocks(100)
+        )
+
+        XCTAssertEqual(MockURLProtocol.capturedRequests.count, 1)
+        XCTAssertEqual(MockURLProtocol.capturedRequests[0].method, "POST")
+    }
+
+    // MARK: - 14. appendBlocks sends PATCH with correct body
+
+    func test_appendBlocks_sendsPATCH_withCorrectBody() async throws {
+        MockURLProtocol.requestHandler = { _ in
+            return (makeResponse(statusCode: 200), Data("{}".utf8))
+        }
+
+        try await client.appendBlocks(pageId: "block-456", blocks: makeBlocks(3))
+
+        XCTAssertEqual(MockURLProtocol.capturedRequests.count, 1)
+        let req = MockURLProtocol.capturedRequests[0]
+        XCTAssertEqual(req.method, "PATCH")
+        XCTAssertTrue(req.url.absoluteString.contains("blocks/block-456/children"))
+
+        let bodyData = try XCTUnwrap(req.body)
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        let children = try XCTUnwrap(json["children"] as? [[String: Any]])
+        XCTAssertEqual(children.count, 3)
+    }
+
+    // MARK: - 15. Append fails: throws rateLimited
+
+    func test_createPage_appendFails_throwsError() async throws {
+        var callCount = 0
+        MockURLProtocol.requestHandler = { request in
+            callCount += 1
+            if callCount == 1 {
+                // POST /pages succeeds
+                return (makeResponse(statusCode: 200), successPageJSON)
+            } else {
+                // PATCH /blocks/.../children returns 429
+                return (makeResponse(url: request.url!, statusCode: 429), Data())
+            }
+        }
+
+        do {
+            _ = try await client.createPage(
+                dataSourceId: "ds-123",
+                title: "Test",
+                litNoteId: nil,
+                blocks: makeBlocks(250)
+            )
+            XCTFail("Expected NotionAPIError.rateLimited to be thrown")
+        } catch let error as NotionAPIError {
+            guard case .rateLimited = error else {
+                XCTFail("Expected .rateLimited, got \(error)")
+                return
+            }
         }
     }
 

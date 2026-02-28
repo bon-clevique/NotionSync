@@ -232,6 +232,9 @@ struct Strings: Sendable {
     func uploadFailed(name: String) -> String {
         ja ? "アップロード失敗: \(name)" : "Upload failed: \(name)"
     }
+    func uploadFailedDetail(name: String, detail: String) -> String {
+        ja ? "アップロード失敗: \(name) — \(detail)" : "Upload failed: \(name) — \(detail)"
+    }
     func archiveSuccess(name: String) -> String {
         ja ? "アーカイブ完了: \(name)" : "Archived: \(name)"
     }

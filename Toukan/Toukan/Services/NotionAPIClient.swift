@@ -303,7 +303,7 @@ struct NotionAPIClient: Sendable {
         let body = CreatePageRequest(
             parent: .init(dataSourceId: dataSourceId),
             properties: properties,
-            children: blocks
+            children: Array(blocks.prefix(100))
         )
 
         var request = URLRequest(url: url)
@@ -319,16 +319,58 @@ struct NotionAPIClient: Sendable {
 
         Self.logger.info("createPage: POST \(url.absoluteString, privacy: .public) title='\(title, privacy: .public)'")
 
-        let (data, response) = try await performRequest(request)
+        let (data, _) = try await performRequest(request)
 
+        let page: NotionPage
         do {
-            let page = try JSONDecoder().decode(NotionPage.self, from: data)
-            Self.logger.info("createPage: created page id=\(page.id, privacy: .public)")
-            return page
+            page = try JSONDecoder().decode(NotionPage.self, from: data)
         } catch {
             Self.logger.error("createPage: decoding failed — \(error, privacy: .public)")
             throw NotionAPIError.decodingError(underlying: error)
         }
+        Self.logger.info("createPage: created page id=\(page.id, privacy: .public)")
+
+        // Append remaining blocks in chunks of 100
+        if blocks.count > 100 {
+            var offset = 100
+            while offset < blocks.count {
+                let end = min(offset + 100, blocks.count)
+                let chunk = Array(blocks[offset..<end])
+                try await appendBlocks(pageId: page.id, blocks: chunk)
+                offset = end
+            }
+            Self.logger.info("createPage: appended \(blocks.count - 100) additional blocks in \((blocks.count - 101) / 100 + 1) batch(es)")
+        }
+
+        return page
+    }
+
+    /// Appends child blocks to an existing page (or block).
+    /// Used internally by `createPage` when blocks exceed the Notion API limit of 100.
+    func appendBlocks(
+        pageId: String,
+        blocks: [NotionBlock]
+    ) async throws {
+        let url = Self.baseURL.appendingPathComponent("blocks/\(pageId)/children")
+
+        struct AppendRequest: Encodable, Sendable {
+            let children: [NotionBlock]
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        applyHeaders(to: &request)
+
+        do {
+            request.httpBody = try JSONEncoder().encode(AppendRequest(children: blocks))
+        } catch {
+            Self.logger.error("appendBlocks: failed to encode — \(error, privacy: .public)")
+            throw NotionAPIError.networkError(underlying: error)
+        }
+
+        Self.logger.info("appendBlocks: PATCH \(url.absoluteString, privacy: .public) (\(blocks.count) blocks)")
+        _ = try await performRequest(request)
+        Self.logger.info("appendBlocks: success (\(blocks.count) blocks)")
     }
 
     /// Retrieves database info including data sources by calling `GET /databases/{database_id}`.
