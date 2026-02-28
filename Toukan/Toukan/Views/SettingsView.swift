@@ -112,6 +112,7 @@ struct SettingsView: View {
     var apiSettings: APISettings
     var bookmarkManager: BookmarkManager
     var languageManager: LanguageManager
+    var logStore: SyncLogStore
 
     private var strings: Strings { languageManager.strings }
 
@@ -125,8 +126,11 @@ struct SettingsView: View {
 
             SyncTargetsSettingsView(bookmarkManager: bookmarkManager, languageManager: languageManager)
                 .tabItem { Label(strings.tabSyncTargets, systemImage: "folder") }
+
+            LogSettingsView(logStore: logStore, languageManager: languageManager)
+                .tabItem { Label(strings.tabLog, systemImage: "list.bullet.rectangle") }
         }
-        .frame(width: 480, height: 520)
+        .frame(width: 480, height: 580)
         .onAppear {
             NSApp.activate()
         }
@@ -598,5 +602,84 @@ private struct SyncTargetRow: View {
         }
         archiveDirName = dirName
         saveAndCheck()
+    }
+}
+
+// MARK: - LogSettingsView
+
+struct LogSettingsView: View {
+    var logStore: SyncLogStore
+    var languageManager: LanguageManager
+    private var strings: Strings { languageManager.strings }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if logStore.entries.isEmpty {
+                Spacer()
+                Text(strings.logEmpty)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            } else {
+                ScrollViewReader { proxy in
+                    List(logStore.entries) { entry in
+                        LogEntryRow(entry: entry)
+                            .id(entry.id)
+                    }
+                    .onChange(of: logStore.entries.last?.id) { _, newId in
+                        if let id = newId {
+                            withAnimation {
+                                proxy.scrollTo(id, anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Divider()
+            HStack {
+                Spacer()
+                Button(strings.logClear) {
+                    logStore.clear()
+                }
+                .disabled(logStore.entries.isEmpty)
+                .padding(8)
+            }
+        }
+    }
+}
+
+// MARK: - LogEntryRow
+
+private struct LogEntryRow: View {
+    let entry: SyncLogEntry
+
+    private var icon: String {
+        switch entry.level {
+        case .info: return "info.circle"
+        case .warning: return "exclamationmark.triangle"
+        case .error: return "xmark.circle"
+        }
+    }
+
+    private var color: Color {
+        switch entry.level {
+        case .info: return .secondary
+        case .warning: return .orange
+        case .error: return .red
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .frame(width: 16)
+            Text(entry.message)
+                .font(.callout)
+            Spacer()
+            Text(entry.timestamp, format: .dateTime.hour().minute().second())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }

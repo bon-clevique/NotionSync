@@ -5,18 +5,21 @@ struct ToukanApp: App {
     @State private var engine: SyncEngine
     @State private var apiSettings: APISettings
     @State private var languageManager: LanguageManager
+    @State private var logStore: SyncLogStore
     private let bookmarkManager: BookmarkManager
 
     init() {
         let bm = BookmarkManager()
         let api = APISettings()
-        let eng = SyncEngine(bookmarkManager: bm, apiSettings: api)
+        let ls = SyncLogStore()
         let lm = LanguageManager()
+        let eng = SyncEngine(bookmarkManager: bm, apiSettings: api, logStore: ls, languageManager: lm)
 
         self.bookmarkManager = bm
         self._apiSettings = State(initialValue: api)
         self._engine = State(initialValue: eng)
         self._languageManager = State(initialValue: lm)
+        self._logStore = State(initialValue: ls)
     }
 
     var body: some Scene {
@@ -29,7 +32,7 @@ struct ToukanApp: App {
         .menuBarExtraStyle(.menu)
 
         Settings {
-            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager, languageManager: languageManager)
+            SettingsView(apiSettings: apiSettings, bookmarkManager: bookmarkManager, languageManager: languageManager, logStore: logStore)
         }
     }
 }
