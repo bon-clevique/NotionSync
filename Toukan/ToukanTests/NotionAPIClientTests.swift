@@ -101,6 +101,7 @@ final class NotionAPIClientTests: XCTestCase {
         let page = try await client.createPage(
             dataSourceId: "ds-123",
             title: "Test Title",
+            titlePropertyName: "Name",
             litNoteId: nil,
             blocks: [.paragraph("Hello")]
         )
@@ -117,6 +118,7 @@ final class NotionAPIClientTests: XCTestCase {
         _ = try await client.createPage(
             dataSourceId: "ds-123",
             title: "Test",
+            titlePropertyName: "Name",
             litNoteId: nil,
             blocks: [.paragraph("text")]
         )
@@ -140,6 +142,36 @@ final class NotionAPIClientTests: XCTestCase {
         XCTAssertNil(properties["Lit Notes"], "Lit Notes should not be present when litNoteId is nil")
     }
 
+    // MARK: - 2b. Dynamic title property name in request body
+
+    func test_createPage_usesCustomTitlePropertyName() async throws {
+        MockURLProtocol.requestHandler = { _ in
+            return (makeResponse(statusCode: 200), successPageJSON)
+        }
+
+        _ = try await client.createPage(
+            dataSourceId: "ds-123",
+            title: "Test",
+            titlePropertyName: "タスク名",
+            litNoteId: nil,
+            blocks: [.paragraph("text")]
+        )
+
+        let bodyData = try XCTUnwrap(MockURLProtocol.lastRequestBody, "Request body should not be nil")
+        let body = try XCTUnwrap(try JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        let properties = try XCTUnwrap(body["properties"] as? [String: Any])
+
+        // "Name" key should NOT be present
+        XCTAssertNil(properties["Name"], "Name should not be present when titlePropertyName is different")
+
+        // Custom property name should be used
+        let titleProperty = try XCTUnwrap(properties["タスク名"] as? [String: Any])
+        let titleArray = try XCTUnwrap(titleProperty["title"] as? [[String: Any]])
+        let firstTitle = try XCTUnwrap(titleArray.first)
+        let textObject = try XCTUnwrap(firstTitle["text"] as? [String: Any])
+        XCTAssertEqual(textObject["content"] as? String, "Test")
+    }
+
     // MARK: - 3. Lit Notes relation included when litNoteId is provided
 
     func test_createPage_withLitNoteId_includesRelation() async throws {
@@ -150,6 +182,7 @@ final class NotionAPIClientTests: XCTestCase {
         _ = try await client.createPage(
             dataSourceId: "ds-123",
             title: "Test",
+            titlePropertyName: "Name",
             litNoteId: "note-abc",
             blocks: []
         )
@@ -174,6 +207,7 @@ final class NotionAPIClientTests: XCTestCase {
             _ = try await client.createPage(
                 dataSourceId: "ds-123",
                 title: "Test",
+                titlePropertyName: "Name",
                 litNoteId: nil,
                 blocks: []
             )
@@ -197,6 +231,7 @@ final class NotionAPIClientTests: XCTestCase {
             _ = try await client.createPage(
                 dataSourceId: "ds-123",
                 title: "Test",
+                titlePropertyName: "Name",
                 litNoteId: nil,
                 blocks: []
             )
@@ -223,6 +258,7 @@ final class NotionAPIClientTests: XCTestCase {
             _ = try await client.createPage(
                 dataSourceId: "ds-123",
                 title: "Test",
+                titlePropertyName: "Name",
                 litNoteId: nil,
                 blocks: []
             )
@@ -247,6 +283,7 @@ final class NotionAPIClientTests: XCTestCase {
             _ = try await client.createPage(
                 dataSourceId: "ds-123",
                 title: "Test",
+                titlePropertyName: "Name",
                 litNoteId: nil,
                 blocks: []
             )
@@ -270,6 +307,7 @@ final class NotionAPIClientTests: XCTestCase {
             _ = try await client.createPage(
                 dataSourceId: "ds-123",
                 title: "Test",
+                titlePropertyName: "Name",
                 litNoteId: nil,
                 blocks: []
             )
@@ -303,7 +341,68 @@ final class NotionAPIClientTests: XCTestCase {
         }
     }
 
-    // MARK: - 10. fetchDataSourceName rejects invalid UUID
+    // MARK: - 10. fetchTitlePropertyName returns correct name
+
+    func test_fetchTitlePropertyName_returnsTitlePropertyName() async throws {
+        let dataSourceJSON = """
+        {
+            "id": "12345678-1234-1234-1234-123456789012",
+            "title": [{"plain_text": "My DB"}],
+            "properties": {
+                "prop1": {"id": "abc", "name": "Status", "type": "select"},
+                "prop2": {"id": "def", "name": "タスク名", "type": "title"}
+            }
+        }
+        """.data(using: .utf8)!
+
+        MockURLProtocol.requestHandler = { _ in
+            return (makeResponse(
+                url: URL(string: "https://api.notion.com/v1/data_sources/12345678-1234-1234-1234-123456789012")!,
+                statusCode: 200
+            ), dataSourceJSON)
+        }
+
+        let name = try await client.fetchTitlePropertyName(
+            dataSourceId: "12345678-1234-1234-1234-123456789012"
+        )
+        XCTAssertEqual(name, "タスク名")
+    }
+
+    // MARK: - 10b. fetchTitlePropertyName throws when no title property found
+
+    func test_fetchTitlePropertyName_noTitleProperty_throwsValidationError() async throws {
+        let dataSourceJSON = """
+        {
+            "id": "12345678-1234-1234-1234-123456789012",
+            "title": [{"plain_text": "My DB"}],
+            "properties": {
+                "prop1": {"id": "abc", "name": "Status", "type": "select"}
+            }
+        }
+        """.data(using: .utf8)!
+
+        MockURLProtocol.requestHandler = { _ in
+            return (makeResponse(
+                url: URL(string: "https://api.notion.com/v1/data_sources/12345678-1234-1234-1234-123456789012")!,
+                statusCode: 200
+            ), dataSourceJSON)
+        }
+
+        do {
+            _ = try await client.fetchTitlePropertyName(
+                dataSourceId: "12345678-1234-1234-1234-123456789012"
+            )
+            XCTFail("Expected NotionAPIError.validationError to be thrown")
+        } catch let error as NotionAPIError {
+            guard case .validationError(let message) = error else {
+                XCTFail("Expected .validationError, got \(error)")
+                return
+            }
+            XCTAssertTrue(message.contains("No title property"))
+        }
+    }
+
+    // MARK: - 10c. fetchDataSourceName rejects invalid UUID
 
     func test_fetchDataSourceName_invalidUUID_throwsValidationError() async throws {
         MockURLProtocol.requestHandler = { _ in
@@ -339,6 +438,7 @@ final class NotionAPIClientTests: XCTestCase {
         _ = try await client.createPage(
             dataSourceId: "ds-123",
             title: "Test",
+            titlePropertyName: "Name",
             litNoteId: nil,
             blocks: makeBlocks(50)
         )
@@ -357,6 +457,7 @@ final class NotionAPIClientTests: XCTestCase {
         _ = try await client.createPage(
             dataSourceId: "ds-123",
             title: "Test",
+            titlePropertyName: "Name",
             litNoteId: nil,
             blocks: makeBlocks(250)
         )
@@ -401,6 +502,7 @@ final class NotionAPIClientTests: XCTestCase {
         _ = try await client.createPage(
             dataSourceId: "ds-123",
             title: "Test",
+            titlePropertyName: "Name",
             litNoteId: nil,
             blocks: makeBlocks(100)
         )
@@ -448,6 +550,7 @@ final class NotionAPIClientTests: XCTestCase {
             _ = try await client.createPage(
                 dataSourceId: "ds-123",
                 title: "Test",
+                titlePropertyName: "Name",
                 litNoteId: nil,
                 blocks: makeBlocks(250)
             )

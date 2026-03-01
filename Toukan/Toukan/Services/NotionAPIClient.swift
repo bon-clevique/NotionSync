@@ -131,6 +131,24 @@ struct NotionBlock: Encodable, Sendable {
     }
 }
 
+// MARK: - Dynamic Coding Key
+
+/// A coding key that supports arbitrary string values at runtime.
+struct DynamicCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int? { nil }
+
+    init(_ value: String) {
+        self.stringValue = value
+    }
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+    }
+
+    init?(intValue: Int) { nil }
+}
+
 // MARK: - Request Types
 
 struct CreatePageRequest: Encodable, Sendable {
@@ -166,12 +184,16 @@ struct CreatePageRequest: Encodable, Sendable {
             let relation: [RelationItem]
         }
 
-        let name: TitleProperty
+        let titlePropertyName: String
+        let titleValue: TitleProperty
         let litNotes: RelationProperty?
 
-        enum CodingKeys: String, CodingKey {
-            case name = "Name"
-            case litNotes = "Lit Notes"
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: DynamicCodingKey.self)
+            try container.encode(titleValue, forKey: DynamicCodingKey(titlePropertyName))
+            if let litNotes {
+                try container.encode(litNotes, forKey: DynamicCodingKey("Lit Notes"))
+            }
         }
     }
 
@@ -202,6 +224,7 @@ struct NotionPage: Decodable, Sendable {
 struct DataSourceResponse: Decodable, Sendable {
     let id: String
     let title: [RichTextItem]
+    let properties: [String: PropertySchema]?
 
     struct RichTextItem: Decodable, Sendable {
         let plainText: String
@@ -211,8 +234,19 @@ struct DataSourceResponse: Decodable, Sendable {
         }
     }
 
+    struct PropertySchema: Decodable, Sendable {
+        let id: String
+        let name: String
+        let type: String
+    }
+
     var name: String {
         title.map(\.plainText).joined()
+    }
+
+    /// Returns the name of the title property, or nil if not found.
+    var titlePropertyName: String? {
+        properties?.values.first { $0.type == "title" }?.name
     }
 }
 
@@ -272,14 +306,16 @@ struct NotionAPIClient: Sendable {
 
     /// Creates a new Notion page.
     /// - Parameters:
-    ///   - dataSourceId: The Notion database (data source) ID to create the page in.
-    ///   - title:        The page title (maps to the "Name" property).
-    ///   - litNoteId:    Optional page ID to set as a "Lit Notes" relation.
-    ///   - blocks:       Body blocks to append as page children.
+    ///   - dataSourceId:       The Notion database (data source) ID to create the page in.
+    ///   - title:              The page title.
+    ///   - titlePropertyName:  The name of the title property in the target data source.
+    ///   - litNoteId:          Optional page ID to set as a "Lit Notes" relation.
+    ///   - blocks:             Body blocks to append as page children.
     /// - Returns: The created `NotionPage`.
     func createPage(
         dataSourceId: String,
         title: String,
+        titlePropertyName: String,
         litNoteId: String?,
         blocks: [NotionBlock]
     ) async throws -> NotionPage {
@@ -296,7 +332,8 @@ struct NotionAPIClient: Sendable {
             litNotes = nil
         }
         let properties = CreatePageRequest.Properties(
-            name: .init(title: [nameItem]),
+            titlePropertyName: titlePropertyName,
+            titleValue: .init(title: [nameItem]),
             litNotes: litNotes
         )
 
@@ -402,23 +439,41 @@ struct NotionAPIClient: Sendable {
     /// - Parameter dataSourceId: The data source ID to look up.
     /// - Returns: The data source name (title).
     func fetchDataSourceName(dataSourceId: String) async throws -> String {
+        let response = try await fetchDataSource(dataSourceId: dataSourceId)
+        return response.name
+    }
+
+    /// Retrieves the title property name from the data source schema.
+    /// - Parameter dataSourceId: The data source ID to look up.
+    /// - Returns: The name of the title property (e.g. "Name", "Title", "タスク名").
+    func fetchTitlePropertyName(dataSourceId: String) async throws -> String {
+        let response = try await fetchDataSource(dataSourceId: dataSourceId)
+        guard let titlePropertyName = response.titlePropertyName else {
+            Self.logger.error("fetchTitlePropertyName: no title property found in data source '\(dataSourceId, privacy: .public)'")
+            throw NotionAPIError.validationError(message: "No title property found in data source")
+        }
+        Self.logger.info("fetchTitlePropertyName: '\(titlePropertyName, privacy: .public)'")
+        return titlePropertyName
+    }
+
+    /// Retrieves the full data source response by calling `GET /data_sources/{data_source_id}`.
+    private func fetchDataSource(dataSourceId: String) async throws -> DataSourceResponse {
         try Self.validateUUID(dataSourceId, label: "data source ID")
         let url = Self.baseURL.appendingPathComponent("data_sources/\(dataSourceId)")
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         applyHeaders(to: &request)
 
-        Self.logger.info("fetchDataSourceName: GET \(url.absoluteString, privacy: .public)")
+        Self.logger.info("fetchDataSource: GET \(url.absoluteString, privacy: .public)")
 
         let (data, _) = try await performRequest(request)
 
         do {
             let response = try JSONDecoder().decode(DataSourceResponse.self, from: data)
-            let name = response.name
-            Self.logger.info("fetchDataSourceName: '\(name, privacy: .public)'")
-            return name
+            Self.logger.info("fetchDataSource: '\(response.name, privacy: .public)'")
+            return response
         } catch {
-            Self.logger.error("fetchDataSourceName: decoding failed — \(error, privacy: .public)")
+            Self.logger.error("fetchDataSource: decoding failed — \(error, privacy: .public)")
             throw NotionAPIError.decodingError(underlying: error)
         }
     }

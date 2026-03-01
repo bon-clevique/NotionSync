@@ -36,6 +36,8 @@ final class SyncEngine {
     private let parser = MarkdownParser()
     private var watcher: DirectoryWatcher?
     private var apiClient: NotionAPIClient?
+    /// Cached title property name from the data source schema.
+    private var cachedTitlePropertyName: String?
     /// Security-scoped resource URLs that have been started and must be stopped on shutdown.
     private var accessedURLs: [URL] = []
 
@@ -147,6 +149,7 @@ final class SyncEngine {
         watcher?.stopAll()
         watcher = nil
         apiClient = nil
+        cachedTitlePropertyName = nil
 
         for url in accessedURLs {
             bookmarkManager.stopAccessing(url)
@@ -233,10 +236,28 @@ final class SyncEngine {
             return
         }
 
+        // Fetch and cache the title property name from the data source schema
+        let titlePropertyName: String
+        if let cached = cachedTitlePropertyName {
+            titlePropertyName = cached
+        } else {
+            do {
+                titlePropertyName = try await client.fetchTitlePropertyName(dataSourceId: apiSettings.dataSourceId)
+                cachedTitlePropertyName = titlePropertyName
+                log(.info, "Title property: '\(titlePropertyName)'")
+            } catch {
+                let detail = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                log(.error, strings.uploadFailedDetail(name: filename, detail: detail))
+                errorMessage = strings.uploadFailed(name: filename)
+                return
+            }
+        }
+
         do {
             _ = try await client.createPage(
                 dataSourceId: apiSettings.dataSourceId,
                 title: title,
+                titlePropertyName: titlePropertyName,
                 litNoteId: noteId,
                 blocks: blocks
             )
